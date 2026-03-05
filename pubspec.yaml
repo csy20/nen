@@ -1,0 +1,53 @@
+name: nen
+description: "Nen — Offline music player with real-time audio visualizer."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.11.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State management
+  flutter_riverpod: ^2.6.1
+
+  # Audio engine
+  flutter_soloud: ^3.1.5
+
+  # Media query (on-device songs, albums, artists)
+  on_audio_query: ^2.9.0
+
+  # Permissions
+  permission_handler: ^11.4.0
+
+  # Palette extraction from album art
+  palette_generator: ^0.3.3+4
+
+  # Path utilities
+  path: ^1.9.1
+
+  # Background audio / lock-screen controls
+  audio_service: ^0.18.17
+
+  # Shared preferences for settings
+  shared_preferences: ^2.5.3
+
+  # UUID generation for playlists
+  uuid: ^4.5.1
+
+  # Collection utilities
+  collection: ^1.19.1
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+
+flutter:
+  uses-material-design: true
+
+  shaders:
+    - shaders/visualizer.frag
