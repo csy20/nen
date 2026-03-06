@@ -11,7 +11,7 @@ import 'now_playing_screen.dart';
 import 'playlists_screen.dart';
 import 'settings_screen.dart';
 
-/// Main library screen with tabs: Songs, Albums, Artists, Playlists.
+/// Main library screen with tabs: Songs, Albums, Artists, Playlists, Folders.
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
 
@@ -21,6 +21,16 @@ class LibraryScreen extends ConsumerStatefulWidget {
 
 class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   int _tabIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() {
+      ref.read(favoritesProvider.notifier).load();
+      ref.read(recentlyPlayedProvider.notifier).load();
+      ref.read(settingsProvider.notifier).load();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -55,10 +65,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       bottomNavigationBar: BottomNavigationBar(
         currentIndex: _tabIndex,
         onTap: (i) => setState(() => _tabIndex = i),
+        type: BottomNavigationBarType.fixed,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.music_note_rounded),
             label: 'Songs',
+          ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.favorite_rounded),
+            label: 'Favorites',
           ),
           BottomNavigationBarItem(
             icon: Icon(Icons.album_rounded),
@@ -72,6 +87,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             icon: Icon(Icons.playlist_play_rounded),
             label: 'Playlists',
           ),
+          BottomNavigationBarItem(
+            icon: Icon(Icons.folder_rounded),
+            label: 'Folders',
+          ),
         ],
       ),
     );
@@ -80,9 +99,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Widget _buildTab() {
     return switch (_tabIndex) {
       0 => const _SongsTab(),
-      1 => const _AlbumsTab(),
-      2 => const _ArtistsTab(),
-      3 => const PlaylistsScreen(),
+      1 => const _FavoritesTab(),
+      2 => const _AlbumsTab(),
+      3 => const _ArtistsTab(),
+      4 => const PlaylistsScreen(),
+      5 => const _FoldersTab(),
       _ => const SizedBox.shrink(),
     };
   }
@@ -121,6 +142,7 @@ class _SongsTab extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final songsAsync = ref.watch(songsProvider);
+    final recentIds = ref.watch(recentlyPlayedProvider);
 
     return songsAsync.when(
       data: (songs) {
@@ -143,19 +165,178 @@ class _SongsTab extends ConsumerWidget {
           );
         }
 
-        return ListView.builder(
-          itemCount: songs.length,
+        // Build recently played section + all songs
+        final recentSongs = recentIds
+            .map((id) => songs.cast<dynamic>().firstWhere(
+                (s) => s.id == id,
+                orElse: () => null))
+            .where((s) => s != null)
+            .take(10)
+            .toList();
+
+        return CustomScrollView(
           physics: const BouncingScrollPhysics(),
-          itemBuilder: (context, index) {
-            final song = songs[index];
-            return SongTile(
-              song: song,
-              onTap: () {
-                ref.read(playbackProvider.notifier)
-                    .playQueue(songs, startIndex: index);
-              },
-            );
-          },
+          slivers: [
+            if (recentSongs.isNotEmpty) ...[
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  child: Text('Recently Played',
+                      style: TextStyle(
+                          color: NenTheme.textSecondary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600)),
+                ),
+              ),
+              SliverToBoxAdapter(
+                child: SizedBox(
+                  height: 56,
+                  child: ListView.builder(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    itemCount: recentSongs.length,
+                    itemBuilder: (context, index) {
+                      final song = recentSongs[index];
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: ActionChip(
+                          label: Text(song.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                  color: NenTheme.textPrimary, fontSize: 12)),
+                          backgroundColor: NenTheme.surfaceElevated,
+                          onPressed: () {
+                            ref.read(playbackProvider.notifier).playSong(song);
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              const SliverToBoxAdapter(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+                  child: Text('All Songs',
+                      style: TextStyle(
+                          color: NenTheme.textSecondary,
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600)),
+                ),
+              ),
+            ],
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final song = songs[index];
+                  return SongTile(
+                    song: song,
+                    onTap: () {
+                      ref.read(playbackProvider.notifier)
+                          .playQueue(songs, startIndex: index);
+                    },
+                  );
+                },
+                childCount: songs.length,
+              ),
+            ),
+          ],
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(
+        child: Text('Error: $e',
+            style: const TextStyle(color: NenTheme.textSecondary)),
+      ),
+    );
+  }
+}
+
+// ── Favorites Tab ──────────────────────────────────────────────────
+
+class _FavoritesTab extends ConsumerWidget {
+  const _FavoritesTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final favoriteIds = ref.watch(favoritesProvider);
+    final songsAsync = ref.watch(songsProvider);
+
+    return songsAsync.when(
+      data: (allSongs) {
+        final favSongs =
+            allSongs.where((s) => favoriteIds.contains(s.id)).toList();
+
+        if (favSongs.isEmpty) {
+          return const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.favorite_border_rounded,
+                    size: 64, color: NenTheme.textTertiary),
+                SizedBox(height: 16),
+                Text('No favorites yet',
+                    style: TextStyle(color: NenTheme.textSecondary)),
+                SizedBox(height: 8),
+                Text('Tap the ♥ icon on songs to add them here',
+                    style: TextStyle(
+                        color: NenTheme.textTertiary, fontSize: 12)),
+              ],
+            ),
+          );
+        }
+
+        return Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Row(
+                children: [
+                  Text('${favSongs.length} favorites',
+                      style: const TextStyle(
+                          color: NenTheme.textSecondary, fontSize: 12)),
+                  const Spacer(),
+                  ElevatedButton.icon(
+                    onPressed: () => ref
+                        .read(playbackProvider.notifier)
+                        .playQueue(favSongs),
+                    icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                    label: const Text('Play All'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Theme.of(context)
+                          .colorScheme
+                          .primary
+                          .withValues(alpha: 0.2),
+                      foregroundColor: Theme.of(context).colorScheme.primary,
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 16, vertical: 8),
+                      shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12)),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Expanded(
+              child: ListView.builder(
+                itemCount: favSongs.length,
+                physics: const BouncingScrollPhysics(),
+                itemBuilder: (context, index) {
+                  final song = favSongs[index];
+                  return SongTile(
+                    song: song,
+                    onTap: () => ref
+                        .read(playbackProvider.notifier)
+                        .playQueue(favSongs, startIndex: index),
+                    onLongPress: () {
+                      ref.read(favoritesProvider.notifier).toggle(song.id);
+                    },
+                  );
+                },
+              ),
+            ),
+          ],
         );
       },
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -315,6 +496,154 @@ class _ArtistsTab extends ConsumerWidget {
       error: (e, _) => Center(
         child: Text('Error: $e',
             style: const TextStyle(color: NenTheme.textSecondary)),
+      ),
+    );
+  }
+}
+
+// ── Folders Tab ────────────────────────────────────────────────────
+
+class _FoldersTab extends ConsumerWidget {
+  const _FoldersTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final foldersAsync = ref.watch(foldersProvider);
+
+    return foldersAsync.when(
+      data: (folders) {
+        if (folders.isEmpty) {
+          return const Center(
+            child: Text('No folders found',
+                style: TextStyle(color: NenTheme.textSecondary)),
+          );
+        }
+
+        return ListView.builder(
+          itemCount: folders.length,
+          physics: const BouncingScrollPhysics(),
+          itemBuilder: (context, index) {
+            final folder = folders[index];
+            final folderName = folder.split('/').last;
+            return ListTile(
+              leading: Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: NenTheme.surfaceElevated,
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Icon(Icons.folder_rounded,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .primary
+                        .withValues(alpha: 0.5)),
+              ),
+              title: Text(folderName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: NenTheme.textPrimary)),
+              subtitle: Text(folder,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                      color: NenTheme.textTertiary, fontSize: 11)),
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) =>
+                      _FolderDetailScreen(path: folder, name: folderName),
+                ),
+              ),
+            );
+          },
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(
+        child: Text('Error: $e',
+            style: const TextStyle(color: NenTheme.textSecondary)),
+      ),
+    );
+  }
+}
+
+class _FolderDetailScreen extends ConsumerWidget {
+  final String path;
+  final String name;
+
+  const _FolderDetailScreen({required this.path, required this.name});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final songsAsync = ref.watch(songsByFolderProvider(path));
+
+    return Scaffold(
+      backgroundColor: NenTheme.trueBlack,
+      appBar: AppBar(title: Text(name)),
+      body: songsAsync.when(
+        data: (songs) {
+          if (songs.isEmpty) {
+            return const Center(
+              child: Text('No songs in this folder',
+                  style: TextStyle(color: NenTheme.textSecondary)),
+            );
+          }
+
+          return Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Text('${songs.length} songs',
+                        style: const TextStyle(
+                            color: NenTheme.textTertiary, fontSize: 12)),
+                    const Spacer(),
+                    ElevatedButton.icon(
+                      onPressed: () => ref
+                          .read(playbackProvider.notifier)
+                          .playQueue(songs),
+                      icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                      label: const Text('Play All'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Theme.of(context)
+                            .colorScheme
+                            .primary
+                            .withValues(alpha: 0.2),
+                        foregroundColor: Theme.of(context).colorScheme.primary,
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 8),
+                        shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: ListView.builder(
+                  itemCount: songs.length,
+                  physics: const BouncingScrollPhysics(),
+                  itemBuilder: (context, index) {
+                    final song = songs[index];
+                    return SongTile(
+                      song: song,
+                      onTap: () => ref
+                          .read(playbackProvider.notifier)
+                          .playQueue(songs, startIndex: index),
+                    );
+                  },
+                ),
+              ),
+            ],
+          );
+        },
+        loading: () => const Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(
+          child: Text('Error: $e',
+              style: const TextStyle(color: NenTheme.textSecondary)),
+        ),
       ),
     );
   }

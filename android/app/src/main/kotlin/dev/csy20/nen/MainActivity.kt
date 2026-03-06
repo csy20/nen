@@ -1,4 +1,4 @@
-package com.example.nen
+package dev.csy20.nen
 
 import com.ryanheise.audioservice.AudioServiceActivity
 

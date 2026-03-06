@@ -35,6 +35,24 @@ abstract class AudioRepository {
   /// Get raw FFT data for the visualizer.
   List<double> getFFTData();
 
+  /// Pre-load a song for gapless transition (optional, for next-track).
+  Future<void> preload(Song song);
+
+  /// Play the pre-loaded song immediately (gapless transition).
+  Future<void> playPreloaded();
+
+  /// Set playback speed (0.5–2.0).
+  Future<void> setSpeed(double speed);
+
+  /// Enable or disable the 8-band equalizer.
+  Future<void> setEqualizerActive(bool active);
+
+  /// Set a single EQ band gain (band 1-8, value 0.0–4.0, default 1.0).
+  Future<void> setEqualizerBand(int band, double gain);
+
+  /// Get all 8 EQ band gains.
+  List<double> getEqualizerBands();
+
   /// Whether the engine is currently initialized.
   bool get isInitialized;
 }

@@ -6,18 +6,21 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/entities/entities.dart';
 import '../../data/services/nen_audio_handler.dart';
 import 'di_providers.dart';
+import 'settings_provider.dart';
 
 /// Manages playback state: play, pause, seek, queue, shuffle, repeat.
 /// Now delegates to NenAudioHandler for background/lock-screen integration.
 class PlaybackNotifier extends StateNotifier<PlaybackState> {
   final NenAudioHandler _handler;
+  final Ref _ref;
   StreamSubscription<audio_svc.PlaybackState>? _pbStateSub;
 
-  PlaybackNotifier(this._handler) : super(const PlaybackState()) {
-    // Wire completion callback for auto-next
+  /// Callback for showing error messages in the UI.
+  void Function(String message)? onPlaybackError;
+
+  PlaybackNotifier(this._handler, this._ref) : super(const PlaybackState()) {
     _handler.onCompletion = _onSongComplete;
 
-    // Listen to audio_service playback state for position updates
     _pbStateSub = _handler.playbackState.listen((ps) {
       state = state.copyWith(
         position: ps.updatePosition,
@@ -38,8 +41,15 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
       currentSong: songs[idx],
       isPlaying: true,
     );
-    await _handler.playSong(songs[idx], queue: songs, queueIndex: idx);
-    _updateDuration(songs[idx]);
+    try {
+      await _handler.playSong(songs[idx], queue: songs, queueIndex: idx);
+      _updateDuration(songs[idx]);
+      _applySpeed();
+      _trackRecentlyPlayed(songs[idx]);
+    } catch (e) {
+      onPlaybackError?.call('Failed to play: ${songs[idx].title}');
+      state = state.copyWith(isPlaying: false);
+    }
   }
 
   Future<void> playSong(Song song) async {
@@ -48,18 +58,33 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
       isPlaying: true,
       position: Duration.zero,
     );
-    await _handler.playSong(song);
-    _updateDuration(song);
+    try {
+      await _handler.playSong(song);
+      _updateDuration(song);
+      _applySpeed();
+      _trackRecentlyPlayed(song);
+    } catch (e) {
+      onPlaybackError?.call('Failed to play: ${song.title}');
+      state = state.copyWith(isPlaying: false);
+    }
   }
 
   Future<void> pause() async {
-    await _handler.pause();
-    state = state.copyWith(isPlaying: false);
+    try {
+      await _handler.pause();
+      state = state.copyWith(isPlaying: false);
+    } catch (e) {
+      onPlaybackError?.call('Failed to pause');
+    }
   }
 
   Future<void> resume() async {
-    await _handler.play();
-    state = state.copyWith(isPlaying: true);
+    try {
+      await _handler.play();
+      state = state.copyWith(isPlaying: true);
+    } catch (e) {
+      onPlaybackError?.call('Failed to resume');
+    }
   }
 
   Future<void> togglePlayPause() async {
@@ -100,15 +125,20 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
       isPlaying: true,
       position: Duration.zero,
     );
-    await _handler.playSong(state.queue[nextIndex],
-        queue: state.queue, queueIndex: nextIndex);
-    _updateDuration(state.queue[nextIndex]);
+    try {
+      await _handler.playSong(state.queue[nextIndex],
+          queue: state.queue, queueIndex: nextIndex);
+      _updateDuration(state.queue[nextIndex]);
+      _applySpeed();
+      _trackRecentlyPlayed(state.queue[nextIndex]);
+    } catch (e) {
+      onPlaybackError?.call('Failed to play next track');
+    }
   }
 
   Future<void> previous() async {
     if (state.queue.isEmpty) return;
 
-    // If past 3 seconds, restart current song
     if (state.position > const Duration(seconds: 3)) {
       await seek(Duration.zero);
       return;
@@ -129,13 +159,21 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
       isPlaying: true,
       position: Duration.zero,
     );
-    await _handler.playSong(state.queue[prevIndex],
-        queue: state.queue, queueIndex: prevIndex);
-    _updateDuration(state.queue[prevIndex]);
+    try {
+      await _handler.playSong(state.queue[prevIndex],
+          queue: state.queue, queueIndex: prevIndex);
+      _updateDuration(state.queue[prevIndex]);
+      _applySpeed();
+      _trackRecentlyPlayed(state.queue[prevIndex]);
+    } catch (e) {
+      onPlaybackError?.call('Failed to play previous track');
+    }
   }
 
   Future<void> stop() async {
-    await _handler.stop();
+    try {
+      await _handler.stop();
+    } catch (_) {}
     state = state.copyWith(
       isPlaying: false,
       position: Duration.zero,
@@ -161,8 +199,70 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
     state = state.copyWith(volume: volume);
   }
 
+  Future<void> setSpeed(double speed) async {
+    final clamped = speed.clamp(0.5, 2.0);
+    state = state.copyWith(speed: clamped);
+    await _handler.audioRepo.setSpeed(clamped);
+  }
+
+  void _applySpeed() {
+    if (state.speed != 1.0) {
+      _handler.audioRepo.setSpeed(state.speed);
+    }
+  }
+
+  // ── Queue Management ──────────────────────────────────────────────
+
+  void reorderQueue(int oldIndex, int newIndex) {
+    final queue = List<Song>.from(state.queue);
+    final item = queue.removeAt(oldIndex);
+    final adjustedNew = newIndex > oldIndex ? newIndex - 1 : newIndex;
+    queue.insert(adjustedNew, item);
+
+    // Adjust current queueIndex
+    int newQueueIndex = state.queueIndex;
+    if (oldIndex == state.queueIndex) {
+      newQueueIndex = adjustedNew;
+    } else if (oldIndex < state.queueIndex && adjustedNew >= state.queueIndex) {
+      newQueueIndex--;
+    } else if (oldIndex > state.queueIndex && adjustedNew <= state.queueIndex) {
+      newQueueIndex++;
+    }
+
+    state = state.copyWith(queue: queue, queueIndex: newQueueIndex);
+  }
+
+  void removeFromQueue(int index) {
+    if (index == state.queueIndex) return; // Can't remove currently playing
+    final queue = List<Song>.from(state.queue);
+    queue.removeAt(index);
+    int newIdx = state.queueIndex;
+    if (index < state.queueIndex) newIdx--;
+    state = state.copyWith(queue: queue, queueIndex: newIdx);
+  }
+
   void _updateDuration(Song song) {
     state = state.copyWith(duration: song.duration);
+    _preloadNextTrack();
+  }
+
+  void _preloadNextTrack() {
+    if (state.queue.isEmpty) return;
+    int nextIndex;
+    if (state.shuffleMode == ShuffleMode.on) {
+      // Can't predict shuffle, skip preload
+      return;
+    }
+    nextIndex = state.queueIndex + 1;
+    if (nextIndex >= state.queue.length) {
+      if (state.repeatMode == NenRepeatMode.all) {
+        nextIndex = 0;
+      } else {
+        return;
+      }
+    }
+    // Pre-load next track in background
+    _handler.audioRepo.preload(state.queue[nextIndex]);
   }
 
   void _onSongComplete() {
@@ -172,6 +272,12 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
     } else {
       next();
     }
+  }
+
+  void _trackRecentlyPlayed(Song song) {
+    try {
+      _ref.read(recentlyPlayedProvider.notifier).addSong(song.id);
+    } catch (_) {}
   }
 
   @override
@@ -184,5 +290,5 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
 final playbackProvider =
     StateNotifierProvider<PlaybackNotifier, PlaybackState>((ref) {
   final handler = ref.watch(audioHandlerProvider);
-  return PlaybackNotifier(handler);
+  return PlaybackNotifier(handler, ref);
 });

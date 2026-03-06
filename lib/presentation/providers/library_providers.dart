@@ -50,3 +50,14 @@ final searchResultsProvider = FutureProvider<List<Song>>((ref) {
 final albumArtProvider = FutureProvider.family<dynamic, int>((ref, songId) {
   return ref.watch(musicRepositoryProvider).getAlbumArt(songId);
 });
+
+// ── Folders ────────────────────────────────────────────────────────
+
+final foldersProvider = FutureProvider<List<String>>((ref) {
+  return ref.watch(musicRepositoryProvider).getFolders();
+});
+
+final songsByFolderProvider =
+    FutureProvider.family<List<Song>, String>((ref, path) {
+  return ref.watch(musicRepositoryProvider).getSongsByFolder(path);
+});

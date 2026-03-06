@@ -88,6 +88,44 @@ class MusicRepositoryImpl implements MusicRepository {
         .toList();
   }
 
+  @override
+  Future<List<String>> getFolders() async {
+    final songs = await _audioQuery.querySongs(
+      uriType: UriType.EXTERNAL,
+    );
+    final folders = <String>{};
+    for (final s in songs) {
+      final path = s.data;
+      final lastSlash = path.lastIndexOf('/');
+      if (lastSlash > 0) {
+        folders.add(path.substring(0, lastSlash));
+      }
+    }
+    final sorted = folders.toList()..sort();
+    return sorted;
+  }
+
+  @override
+  Future<List<Song>> getSongsByFolder(String path) async {
+    final songs = await _audioQuery.querySongs(
+      uriType: UriType.EXTERNAL,
+    );
+    return songs
+        .where((s) {
+          final lastSlash = s.data.lastIndexOf('/');
+          if (lastSlash <= 0) return false;
+          return s.data.substring(0, lastSlash) == path;
+        })
+        .map(_mapSong)
+        .toList();
+  }
+
+  @override
+  Future<void> rescanMedia() async {
+    // Trigger a media store rescan
+    await _audioQuery.scanMedia('/');
+  }
+
   Song _mapSong(SongModel m) => Song(
         id: m.id,
         title: m.title,

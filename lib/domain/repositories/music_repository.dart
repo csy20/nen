@@ -11,4 +11,7 @@ abstract class MusicRepository {
   Future<List<Song>> getSongsByArtist(int artistId);
   Future<Uint8List?> getAlbumArt(int songId);
   Future<List<Song>> searchSongs(String query);
+  Future<List<String>> getFolders();
+  Future<List<Song>> getSongsByFolder(String path);
+  Future<void> rescanMedia();
 }

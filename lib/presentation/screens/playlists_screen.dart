@@ -1,5 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:path/path.dart' as p;
 
 import '../providers/providers.dart';
 import '../theme/nen_theme.dart';
@@ -27,33 +31,53 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
 
     return Column(
       children: [
-        // Create playlist button
+        // Create playlist + export/import buttons
         Padding(
           padding: const EdgeInsets.all(16),
-          child: InkWell(
-            onTap: () => _showCreateDialog(context),
-            borderRadius: BorderRadius.circular(12),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-              decoration: glassmorphicDecoration(
-                borderRadius: 12,
-                opacity: 0.06,
-              ),
-              child: Row(
-                children: [
-                  Icon(Icons.add_rounded,
-                      color: Theme.of(context).colorScheme.primary),
-                  const SizedBox(width: 12),
-                  const Text(
-                    'Create Playlist',
-                    style: TextStyle(
-                      color: NenTheme.textPrimary,
-                      fontWeight: FontWeight.w500,
+          child: Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  onTap: () => _showCreateDialog(context),
+                  borderRadius: BorderRadius.circular(12),
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    decoration: glassmorphicDecoration(
+                      borderRadius: 12,
+                      opacity: 0.06,
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.add_rounded,
+                            color: Theme.of(context).colorScheme.primary),
+                        const SizedBox(width: 12),
+                        const Text(
+                          'Create Playlist',
+                          style: TextStyle(
+                            color: NenTheme.textPrimary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
+                ),
               ),
-            ),
+              const SizedBox(width: 8),
+              IconButton(
+                icon: const Icon(Icons.file_upload_outlined,
+                    color: NenTheme.textSecondary),
+                onPressed: () => _exportPlaylists(context),
+                tooltip: 'Export Playlists',
+              ),
+              IconButton(
+                icon: const Icon(Icons.file_download_outlined,
+                    color: NenTheme.textSecondary),
+                onPressed: () => _importPlaylists(context),
+                tooltip: 'Import Playlists',
+              ),
+            ],
           ),
         ),
 
@@ -205,6 +229,79 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
     Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => _PlaylistDetailScreen(playlist: playlist),
     ));
+  }
+
+  Future<void> _exportPlaylists(BuildContext context) async {
+    final playlists = ref.read(playlistsProvider);
+    if (playlists.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No playlists to export')),
+      );
+      return;
+    }
+
+    final data = playlists.map((p) => {
+      'name': p.name,
+      'songs': p.songs.map((s) => {
+        'id': s.id,
+        'title': s.title,
+        'artist': s.artist,
+        'album': s.album,
+        'albumId': s.albumId,
+        'duration': s.duration.inMilliseconds,
+        'filePath': s.filePath,
+        'trackNumber': s.trackNumber,
+        'year': s.year,
+      }).toList(),
+    }).toList();
+
+    final json = const JsonEncoder.withIndent('  ').convert(data);
+    final dir = Directory('/storage/emulated/0/Download');
+    if (!await dir.exists()) await dir.create(recursive: true);
+    final file = File(p.join(dir.path, 'nen_playlists.json'));
+    await file.writeAsString(json);
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Exported to ${file.path}')),
+      );
+    }
+  }
+
+  Future<void> _importPlaylists(BuildContext context) async {
+    final file = File('/storage/emulated/0/Download/nen_playlists.json');
+    if (!await file.exists()) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+              content: Text('No nen_playlists.json found in Downloads')),
+        );
+      }
+      return;
+    }
+
+    try {
+      final json = await file.readAsString();
+      final data = jsonDecode(json) as List;
+      int count = 0;
+      for (final p in data) {
+        final name = p['name'] as String;
+        await ref.read(playlistsProvider.notifier).create(name);
+        count++;
+      }
+      await ref.read(playlistsProvider.notifier).load();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Imported $count playlists')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Import failed: $e')),
+        );
+      }
+    }
   }
 }
 

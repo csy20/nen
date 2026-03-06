@@ -10,6 +10,7 @@ import '../providers/providers.dart';
 import '../theme/nen_theme.dart';
 import '../widgets/audio_visualizer.dart';
 import '../widgets/neu_playback_button.dart';
+import 'equalizer_screen.dart';
 
 /// Full-screen now-playing screen with visualizer, controls, and album art.
 class NowPlayingScreen extends ConsumerStatefulWidget {
@@ -24,10 +25,27 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   int? _lastSongId;
 
   @override
+  void initState() {
+    super.initState();
+    // Wire error callback for snackbar feedback
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(playbackProvider.notifier).onPlaybackError = (msg) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(msg)),
+          );
+        }
+      };
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final playback = ref.watch(playbackProvider);
     final song = playback.currentSong;
     final size = MediaQuery.of(context).size;
+    final favorites = ref.watch(favoritesProvider);
+    final sleepTimer = ref.watch(sleepTimerProvider);
 
     // Extract accent color from album art when song changes
     if (song != null && song.id != _lastSongId) {
@@ -68,7 +86,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             child: Column(
               children: [
                 // Top bar with glassmorphic blur
-                _buildTopBar(context),
+                _buildTopBar(context, song, favorites, sleepTimer),
 
                 const Spacer(flex: 3),
 
@@ -106,6 +124,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                             _buildControls(playback),
                             const SizedBox(height: 8),
                             _buildVolumeBar(playback),
+                            const SizedBox(height: 4),
+                            _buildSpeedControl(playback),
                           ],
                         ),
                       ),
@@ -122,7 +142,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     );
   }
 
-  Widget _buildTopBar(BuildContext context) {
+  Widget _buildTopBar(BuildContext context, Song? song, Set<int> favorites,
+      SleepTimerState sleepTimer) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: ClipRRect(
@@ -148,6 +169,19 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                   tooltip: 'Close',
                 ),
                 const Spacer(),
+                // Sleep timer indicator
+                if (sleepTimer.isActive)
+                  Padding(
+                    padding: const EdgeInsets.only(right: 4),
+                    child: Text(
+                      _formatDuration(sleepTimer.remaining ?? Duration.zero),
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
                 const Text(
                   'NOW PLAYING',
                   style: TextStyle(
@@ -158,11 +192,57 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                   ),
                 ),
                 const Spacer(),
-                IconButton(
-                  icon: const Icon(Icons.more_vert_rounded),
-                  color: NenTheme.textPrimary,
-                  onPressed: () {},
-                  tooltip: 'Options',
+                // Favorite button
+                if (song != null)
+                  IconButton(
+                    icon: Icon(
+                      favorites.contains(song.id)
+                          ? Icons.favorite_rounded
+                          : Icons.favorite_border_rounded,
+                      color: favorites.contains(song.id)
+                          ? Colors.redAccent
+                          : NenTheme.textPrimary,
+                      size: 22,
+                    ),
+                    onPressed: () =>
+                        ref.read(favoritesProvider.notifier).toggle(song.id),
+                    tooltip: 'Favorite',
+                  ),
+                // Options menu
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert_rounded,
+                      color: NenTheme.textPrimary),
+                  color: NenTheme.surfaceElevated,
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
+                        value: 'queue', child: Text('View Queue')),
+                    const PopupMenuItem(
+                        value: 'equalizer', child: Text('Equalizer')),
+                    PopupMenuItem(
+                      value: 'sleep',
+                      child: Text(sleepTimer.isActive
+                          ? 'Cancel Sleep Timer'
+                          : 'Sleep Timer'),
+                    ),
+                  ],
+                  onSelected: (val) {
+                    if (val == 'queue') _showQueueSheet(context);
+                    if (val == 'equalizer') {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const EqualizerScreen(),
+                        ),
+                      );
+                    }
+                    if (val == 'sleep') {
+                      if (sleepTimer.isActive) {
+                        ref.read(sleepTimerProvider.notifier).cancel();
+                      } else {
+                        _showSleepTimerPicker(context);
+                      }
+                    }
+                  },
                 ),
               ],
             ),
@@ -380,6 +460,188 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           const Icon(Icons.volume_up_rounded,
               color: NenTheme.textTertiary, size: 18),
         ],
+      ),
+    );
+  }
+
+  Widget _buildSpeedControl(PlaybackState playback) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 40),
+      child: Row(
+        children: [
+          const Icon(Icons.speed_rounded,
+              color: NenTheme.textTertiary, size: 18),
+          Expanded(
+            child: Slider(
+              value: playback.speed,
+              min: 0.5,
+              max: 2.0,
+              divisions: 6,
+              label: '${playback.speed.toStringAsFixed(1)}x',
+              onChanged: (v) =>
+                  ref.read(playbackProvider.notifier).setSpeed(v),
+            ),
+          ),
+          Text(
+            '${playback.speed.toStringAsFixed(1)}x',
+            style: const TextStyle(
+                color: NenTheme.textTertiary, fontSize: 11),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showQueueSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: NenTheme.surfaceElevated,
+      isScrollControlled: true,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.6,
+        minChildSize: 0.3,
+        maxChildSize: 0.9,
+        expand: false,
+        builder: (ctx, scrollController) {
+          return Consumer(builder: (ctx, ref, _) {
+            final playback = ref.watch(playbackProvider);
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      const Text('Up Next',
+                          style: TextStyle(
+                              color: NenTheme.textPrimary,
+                              fontSize: 18,
+                              fontWeight: FontWeight.w600)),
+                      const Spacer(),
+                      Text('${playback.queue.length} songs',
+                          style: const TextStyle(
+                              color: NenTheme.textTertiary, fontSize: 12)),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: ReorderableListView.builder(
+                    scrollController: scrollController,
+                    itemCount: playback.queue.length,
+                    onReorder: (oldIdx, newIdx) {
+                      ref
+                          .read(playbackProvider.notifier)
+                          .reorderQueue(oldIdx, newIdx);
+                    },
+                    itemBuilder: (ctx, index) {
+                      final s = playback.queue[index];
+                      final isCurrent = index == playback.queueIndex;
+                      return ListTile(
+                        key: ValueKey('queue_${s.id}_$index'),
+                        leading: isCurrent
+                            ? Icon(Icons.equalizer_rounded,
+                                color: Theme.of(ctx).colorScheme.primary)
+                            : Text('${index + 1}',
+                                style: const TextStyle(
+                                    color: NenTheme.textTertiary)),
+                        title: Text(s.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: isCurrent
+                                  ? Theme.of(ctx).colorScheme.primary
+                                  : NenTheme.textPrimary,
+                              fontWeight:
+                                  isCurrent ? FontWeight.w600 : FontWeight.normal,
+                            )),
+                        subtitle: Text(s.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: NenTheme.textTertiary, fontSize: 12)),
+                        trailing: isCurrent
+                            ? null
+                            : IconButton(
+                                icon: const Icon(Icons.close_rounded,
+                                    color: NenTheme.textTertiary, size: 18),
+                                onPressed: () => ref
+                                    .read(playbackProvider.notifier)
+                                    .removeFromQueue(index),
+                              ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            );
+          });
+        },
+      ),
+    );
+  }
+
+  void _showSleepTimerPicker(BuildContext context) {
+    final durations = [
+      const Duration(minutes: 15),
+      const Duration(minutes: 30),
+      const Duration(minutes: 45),
+      const Duration(minutes: 60),
+      const Duration(minutes: 90),
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: NenTheme.surfaceElevated,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Sleep Timer',
+                style: TextStyle(
+                    color: NenTheme.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600)),
+            const SizedBox(height: 16),
+            ...durations.map((d) => ListTile(
+                  title: Text('${d.inMinutes} minutes',
+                      style: const TextStyle(color: NenTheme.textPrimary)),
+                  onTap: () {
+                    ref.read(sleepTimerProvider.notifier).start(
+                      d,
+                      () => ref.read(playbackProvider.notifier).pause(),
+                    );
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content:
+                              Text('Sleep timer set for ${d.inMinutes} min')),
+                    );
+                  },
+                )),
+            ListTile(
+              title: const Text('End of track',
+                  style: TextStyle(color: NenTheme.textPrimary)),
+              onTap: () {
+                final playback = ref.read(playbackProvider);
+                final remaining = playback.duration - playback.position;
+                if (remaining > Duration.zero) {
+                  ref.read(sleepTimerProvider.notifier).start(
+                    remaining,
+                    () => ref.read(playbackProvider.notifier).pause(),
+                  );
+                }
+                Navigator.pop(ctx);
+              },
+            ),
+          ],
+        ),
       ),
     );
   }
