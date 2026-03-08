@@ -7,6 +7,7 @@ import 'package:path/path.dart' as p;
 
 import '../providers/providers.dart';
 import '../theme/nen_theme.dart';
+import '../theme/page_transitions.dart';
 import '../widgets/song_tile.dart';
 
 /// Playlist management screen.
@@ -27,6 +28,7 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NenTheme.of(context);
     final playlists = ref.watch(playlistsProvider);
 
     return Column(
@@ -52,10 +54,10 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                         Icon(Icons.add_rounded,
                             color: Theme.of(context).colorScheme.primary),
                         const SizedBox(width: 12),
-                        const Text(
+                        Text(
                           'Create Playlist',
                           style: TextStyle(
-                            color: NenTheme.textPrimary,
+                            color: colors.textPrimary,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -66,14 +68,14 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
               ),
               const SizedBox(width: 8),
               IconButton(
-                icon: const Icon(Icons.file_upload_outlined,
-                    color: NenTheme.textSecondary),
+                icon: Icon(Icons.file_upload_outlined,
+                    color: colors.textSecondary),
                 onPressed: () => _exportPlaylists(context),
                 tooltip: 'Export Playlists',
               ),
               IconButton(
-                icon: const Icon(Icons.file_download_outlined,
-                    color: NenTheme.textSecondary),
+                icon: Icon(Icons.file_download_outlined,
+                    color: colors.textSecondary),
                 onPressed: () => _importPlaylists(context),
                 tooltip: 'Import Playlists',
               ),
@@ -84,10 +86,10 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
         // Playlist list
         Expanded(
           child: playlists.isEmpty
-              ? const Center(
+              ? Center(
                   child: Text(
                     'No playlists yet',
-                    style: TextStyle(color: NenTheme.textSecondary),
+                    style: TextStyle(color: colors.textSecondary),
                   ),
                 )
               : ListView.builder(
@@ -100,7 +102,7 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                         width: 48,
                         height: 48,
                         decoration: BoxDecoration(
-                          color: NenTheme.surfaceElevated,
+                          color: colors.surfaceElevated,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Icon(
@@ -113,19 +115,19 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                       ),
                       title: Text(
                         playlist.name,
-                        style: const TextStyle(color: NenTheme.textPrimary),
+                        style: TextStyle(color: colors.textPrimary),
                       ),
                       subtitle: Text(
                         '${playlist.songs.length} songs',
-                        style: const TextStyle(
-                          color: NenTheme.textTertiary,
+                        style: TextStyle(
+                          color: colors.textTertiary,
                           fontSize: 12,
                         ),
                       ),
                       trailing: PopupMenuButton(
-                        icon: const Icon(Icons.more_vert_rounded,
-                            color: NenTheme.textTertiary),
-                        color: NenTheme.surfaceElevated,
+                        icon: Icon(Icons.more_vert_rounded,
+                            color: colors.textTertiary),
+                        color: colors.surfaceElevated,
                         itemBuilder: (_) => [
                           const PopupMenuItem(
                             value: 'rename',
@@ -158,20 +160,21 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
   }
 
   void _showCreateDialog(BuildContext context) {
+    final colors = NenTheme.of(context);
     final controller = TextEditingController();
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: NenTheme.surfaceElevated,
+        backgroundColor: colors.surfaceElevated,
         title: const Text('New Playlist'),
         content: TextField(
           controller: controller,
           autofocus: true,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
             hintText: 'Playlist name',
-            hintStyle: TextStyle(color: NenTheme.textTertiary),
+            hintStyle: TextStyle(color: colors.textTertiary),
           ),
-          style: const TextStyle(color: NenTheme.textPrimary),
+          style: TextStyle(color: colors.textPrimary),
         ),
         actions: [
           TextButton(
@@ -194,16 +197,17 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
   }
 
   void _showRenameDialog(BuildContext context, String id, String currentName) {
+    final colors = NenTheme.of(context);
     final controller = TextEditingController(text: currentName);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: NenTheme.surfaceElevated,
+        backgroundColor: colors.surfaceElevated,
         title: const Text('Rename Playlist'),
         content: TextField(
           controller: controller,
           autofocus: true,
-          style: const TextStyle(color: NenTheme.textPrimary),
+          style: TextStyle(color: colors.textPrimary),
         ),
         actions: [
           TextButton(
@@ -226,7 +230,7 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
   }
 
   void _openPlaylistDetail(BuildContext context, dynamic playlist) {
-    Navigator.of(context).push(MaterialPageRoute(
+    Navigator.of(context).push(NenSlideRoute(
       builder: (_) => _PlaylistDetailScreen(playlist: playlist),
     ));
   }
@@ -312,8 +316,9 @@ class _PlaylistDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NenTheme.of(context);
     return Scaffold(
-      backgroundColor: NenTheme.trueBlack,
+      backgroundColor: colors.background,
       appBar: AppBar(
         title: Text(playlist.name),
         actions: [
@@ -328,10 +333,10 @@ class _PlaylistDetailScreen extends ConsumerWidget {
         ],
       ),
       body: playlist.songs.isEmpty
-          ? const Center(
+          ? Center(
               child: Text(
                 'No songs in this playlist',
-                style: TextStyle(color: NenTheme.textSecondary),
+                style: TextStyle(color: colors.textSecondary),
               ),
             )
           : ListView.builder(

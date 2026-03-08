@@ -8,6 +8,7 @@ import 'package:palette_generator/palette_generator.dart';
 import '../../domain/entities/entities.dart';
 import '../providers/providers.dart';
 import '../theme/nen_theme.dart';
+import '../theme/page_transitions.dart';
 import '../widgets/audio_visualizer.dart';
 import '../widgets/neu_playback_button.dart';
 import 'equalizer_screen.dart';
@@ -46,6 +47,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     final size = MediaQuery.of(context).size;
     final favorites = ref.watch(favoritesProvider);
     final sleepTimer = ref.watch(sleepTimerProvider);
+    final colors = NenTheme.of(context);
 
     // Extract accent color from album art when song changes
     if (song != null && song.id != _lastSongId) {
@@ -54,7 +56,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
     }
 
     return Scaffold(
-      backgroundColor: NenTheme.trueBlack,
+      backgroundColor: colors.background,
       body: Stack(
         children: [
           // Background: shader visualizer
@@ -71,9 +73,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                   end: Alignment.bottomCenter,
                   colors: [
                     Colors.transparent,
-                    NenTheme.trueBlack.withValues(alpha: 0.4),
-                    NenTheme.trueBlack.withValues(alpha: 0.85),
-                    NenTheme.trueBlack,
+                    colors.background.withValues(alpha: 0.4),
+                    colors.background.withValues(alpha: 0.85),
+                    colors.background,
                   ],
                   stops: const [0.0, 0.45, 0.7, 1.0],
                 ),
@@ -144,6 +146,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
 
   Widget _buildTopBar(BuildContext context, Song? song, Set<int> favorites,
       SleepTimerState sleepTimer) {
+    final colors = NenTheme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       child: ClipRRect(
@@ -153,10 +156,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.05),
+              color: colors.glassSurface,
               borderRadius: BorderRadius.circular(16),
               border: Border.all(
-                color: Colors.white.withValues(alpha: 0.06),
+                color: colors.glassBorder,
                 width: 0.5,
               ),
             ),
@@ -164,7 +167,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
               children: [
                 IconButton(
                   icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 32),
-                  color: NenTheme.textPrimary,
+                  color: colors.textPrimary,
                   onPressed: () => Navigator.pop(context),
                   tooltip: 'Close',
                 ),
@@ -182,10 +185,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                       ),
                     ),
                   ),
-                const Text(
+                Text(
                   'NOW PLAYING',
                   style: TextStyle(
-                    color: NenTheme.textSecondary,
+                    color: colors.textSecondary,
                     fontSize: 11,
                     fontWeight: FontWeight.w600,
                     letterSpacing: 1.5,
@@ -201,7 +204,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                           : Icons.favorite_border_rounded,
                       color: favorites.contains(song.id)
                           ? Colors.redAccent
-                          : NenTheme.textPrimary,
+                          : colors.textPrimary,
                       size: 22,
                     ),
                     onPressed: () =>
@@ -210,9 +213,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                   ),
                 // Options menu
                 PopupMenuButton<String>(
-                  icon: const Icon(Icons.more_vert_rounded,
-                      color: NenTheme.textPrimary),
-                  color: NenTheme.surfaceElevated,
+                  icon: Icon(Icons.more_vert_rounded,
+                      color: colors.textPrimary),
+                  color: colors.surfaceElevated,
                   itemBuilder: (_) => [
                     const PopupMenuItem(
                         value: 'queue', child: Text('View Queue')),
@@ -230,7 +233,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                     if (val == 'equalizer') {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
+                        NenSlideRoute(
                           builder: (_) => const EqualizerScreen(),
                         ),
                       );
@@ -255,12 +258,13 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   Widget _buildAlbumArt(BuildContext context, Song? song, Size screenSize) {
     final artSize = screenSize.width * 0.55;
     final artAsync = song != null ? ref.watch(albumArtProvider(song.id)) : null;
+    final colors = NenTheme.of(context);
 
     return Container(
       width: artSize,
       height: artSize,
       decoration: BoxDecoration(
-        color: NenTheme.surfaceElevated,
+        color: colors.surfaceElevated,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
           BoxShadow(
@@ -288,8 +292,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   }
 
   Widget _defaultArtLarge() {
+    final colors = NenTheme.of(context);
     return Container(
-      color: NenTheme.surfaceElevated,
+      color: colors.surfaceElevated,
       child: Center(
         child: Icon(
           Icons.music_note_rounded,
@@ -301,6 +306,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   }
 
   Widget _buildSongInfo(Song? song) {
+    final colors = NenTheme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Column(
@@ -310,8 +316,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: NenTheme.textPrimary,
+            style: TextStyle(
+              color: colors.textPrimary,
               fontSize: 20,
               fontWeight: FontWeight.w600,
             ),
@@ -322,8 +328,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: NenTheme.textSecondary,
+            style: TextStyle(
+              color: colors.textSecondary,
               fontSize: 14,
             ),
           ),
@@ -333,6 +339,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   }
 
   Widget _buildProgressBar(PlaybackState playback) {
+    final colors = NenTheme.of(context);
     final position = playback.position;
     final duration =
         playback.duration > Duration.zero ? playback.duration : const Duration(seconds: 1);
@@ -365,11 +372,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(_formatDuration(position),
-                    style: const TextStyle(
-                        color: NenTheme.textTertiary, fontSize: 11)),
+                    style: TextStyle(
+                        color: colors.textTertiary, fontSize: 11)),
                 Text(_formatDuration(duration),
-                    style: const TextStyle(
-                        color: NenTheme.textTertiary, fontSize: 11)),
+                    style: TextStyle(
+                        color: colors.textTertiary, fontSize: 11)),
               ],
             ),
           ),
@@ -379,6 +386,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   }
 
   Widget _buildControls(PlaybackState playback) {
+    final colors = NenTheme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
       child: Row(
@@ -390,7 +398,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
               Icons.shuffle_rounded,
               color: playback.shuffleMode == ShuffleMode.on
                   ? Theme.of(context).colorScheme.primary
-                  : NenTheme.textTertiary,
+                  : colors.textTertiary,
               size: 22,
             ),
             onPressed: () =>
@@ -399,28 +407,40 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           ),
 
           // Previous
-          NeuPlaybackButton(
-            icon: Icons.skip_previous_rounded,
-            size: 48,
-            onPressed: () => ref.read(playbackProvider.notifier).previous(),
+          Semantics(
+            label: 'Previous track',
+            button: true,
+            child: NeuPlaybackButton(
+              icon: Icons.skip_previous_rounded,
+              size: 48,
+              onPressed: () => ref.read(playbackProvider.notifier).previous(),
+            ),
           ),
 
           // Play/Pause with animated icon morph
-          NeuPlaybackButton(
-            icon: Icons.play_arrow_rounded,
-            size: 68,
-            isPrimary: true,
-            animatePlayPause: true,
-            isPlaying: playback.isPlaying,
-            onPressed: () =>
-                ref.read(playbackProvider.notifier).togglePlayPause(),
+          Semantics(
+            label: playback.isPlaying ? 'Pause' : 'Play',
+            button: true,
+            child: NeuPlaybackButton(
+              icon: Icons.play_arrow_rounded,
+              size: 68,
+              isPrimary: true,
+              animatePlayPause: true,
+              isPlaying: playback.isPlaying,
+              onPressed: () =>
+                  ref.read(playbackProvider.notifier).togglePlayPause(),
+            ),
           ),
 
           // Next
-          NeuPlaybackButton(
-            icon: Icons.skip_next_rounded,
-            size: 48,
-            onPressed: () => ref.read(playbackProvider.notifier).next(),
+          Semantics(
+            label: 'Next track',
+            button: true,
+            child: NeuPlaybackButton(
+              icon: Icons.skip_next_rounded,
+              size: 48,
+              onPressed: () => ref.read(playbackProvider.notifier).next(),
+            ),
           ),
 
           // Repeat
@@ -431,7 +451,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                   : Icons.repeat_rounded,
               color: playback.repeatMode != NenRepeatMode.off
                   ? Theme.of(context).colorScheme.primary
-                  : NenTheme.textTertiary,
+                  : colors.textTertiary,
               size: 22,
             ),
             onPressed: () =>
@@ -444,12 +464,13 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   }
 
   Widget _buildVolumeBar(PlaybackState playback) {
+    final colors = NenTheme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 40),
       child: Row(
         children: [
-          const Icon(Icons.volume_down_rounded,
-              color: NenTheme.textTertiary, size: 18),
+          Icon(Icons.volume_down_rounded,
+              color: colors.textTertiary, size: 18),
           Expanded(
             child: Slider(
               value: playback.volume,
@@ -457,20 +478,21 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                   ref.read(playbackProvider.notifier).setVolume(v),
             ),
           ),
-          const Icon(Icons.volume_up_rounded,
-              color: NenTheme.textTertiary, size: 18),
+          Icon(Icons.volume_up_rounded,
+              color: colors.textTertiary, size: 18),
         ],
       ),
     );
   }
 
   Widget _buildSpeedControl(PlaybackState playback) {
+    final colors = NenTheme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 40),
       child: Row(
         children: [
-          const Icon(Icons.speed_rounded,
-              color: NenTheme.textTertiary, size: 18),
+          Icon(Icons.speed_rounded,
+              color: colors.textTertiary, size: 18),
           Expanded(
             child: Slider(
               value: playback.speed,
@@ -484,8 +506,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           ),
           Text(
             '${playback.speed.toStringAsFixed(1)}x',
-            style: const TextStyle(
-                color: NenTheme.textTertiary, fontSize: 11),
+            style: TextStyle(
+                color: colors.textTertiary, fontSize: 11),
           ),
         ],
       ),
@@ -493,9 +515,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   }
 
   void _showQueueSheet(BuildContext context) {
+    final colors = NenTheme.of(context);
     showModalBottomSheet(
       context: context,
-      backgroundColor: NenTheme.surfaceElevated,
+      backgroundColor: colors.surfaceElevated,
       isScrollControlled: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
@@ -508,21 +531,22 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
         builder: (ctx, scrollController) {
           return Consumer(builder: (ctx, ref, _) {
             final playback = ref.watch(playbackProvider);
+            final sheetColors = NenTheme.of(ctx);
             return Column(
               children: [
                 Padding(
                   padding: const EdgeInsets.all(16),
                   child: Row(
                     children: [
-                      const Text('Up Next',
+                      Text('Up Next',
                           style: TextStyle(
-                              color: NenTheme.textPrimary,
+                              color: sheetColors.textPrimary,
                               fontSize: 18,
                               fontWeight: FontWeight.w600)),
                       const Spacer(),
                       Text('${playback.queue.length} songs',
-                          style: const TextStyle(
-                              color: NenTheme.textTertiary, fontSize: 12)),
+                          style: TextStyle(
+                              color: sheetColors.textTertiary, fontSize: 12)),
                     ],
                   ),
                 ),
@@ -538,34 +562,35 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                     itemBuilder: (ctx, index) {
                       final s = playback.queue[index];
                       final isCurrent = index == playback.queueIndex;
+                      final itemColors = NenTheme.of(ctx);
                       return ListTile(
                         key: ValueKey('queue_${s.id}_$index'),
                         leading: isCurrent
                             ? Icon(Icons.equalizer_rounded,
                                 color: Theme.of(ctx).colorScheme.primary)
                             : Text('${index + 1}',
-                                style: const TextStyle(
-                                    color: NenTheme.textTertiary)),
+                                style: TextStyle(
+                                    color: itemColors.textTertiary)),
                         title: Text(s.title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
                               color: isCurrent
                                   ? Theme.of(ctx).colorScheme.primary
-                                  : NenTheme.textPrimary,
+                                  : itemColors.textPrimary,
                               fontWeight:
                                   isCurrent ? FontWeight.w600 : FontWeight.normal,
                             )),
                         subtitle: Text(s.artist,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                                color: NenTheme.textTertiary, fontSize: 12)),
+                            style: TextStyle(
+                                color: itemColors.textTertiary, fontSize: 12)),
                         trailing: isCurrent
                             ? null
                             : IconButton(
-                                icon: const Icon(Icons.close_rounded,
-                                    color: NenTheme.textTertiary, size: 18),
+                                icon: Icon(Icons.close_rounded,
+                                    color: itemColors.textTertiary, size: 18),
                                 onPressed: () => ref
                                     .read(playbackProvider.notifier)
                                     .removeFromQueue(index),
@@ -583,6 +608,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
   }
 
   void _showSleepTimerPicker(BuildContext context) {
+    final colors = NenTheme.of(context);
     final durations = [
       const Duration(minutes: 15),
       const Duration(minutes: 30),
@@ -593,7 +619,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: NenTheme.surfaceElevated,
+      backgroundColor: colors.surfaceElevated,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -603,15 +629,15 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Sleep Timer',
+            Text('Sleep Timer',
                 style: TextStyle(
-                    color: NenTheme.textPrimary,
+                    color: colors.textPrimary,
                     fontSize: 18,
                     fontWeight: FontWeight.w600)),
             const SizedBox(height: 16),
             ...durations.map((d) => ListTile(
                   title: Text('${d.inMinutes} minutes',
-                      style: const TextStyle(color: NenTheme.textPrimary)),
+                      style: TextStyle(color: colors.textPrimary)),
                   onTap: () {
                     ref.read(sleepTimerProvider.notifier).start(
                       d,
@@ -626,8 +652,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> {
                   },
                 )),
             ListTile(
-              title: const Text('End of track',
-                  style: TextStyle(color: NenTheme.textPrimary)),
+              title: Text('End of track',
+                  style: TextStyle(color: colors.textPrimary)),
               onTap: () {
                 final playback = ref.read(playbackProvider);
                 final remaining = playback.duration - playback.position;

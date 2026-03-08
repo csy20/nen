@@ -1,11 +1,11 @@
 {
-    "name": "nen",
-    "short_name": "nen",
+    "name": "念 nen",
+    "short_name": "念",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#1a1a2e",
+    "theme_color": "#8B7EC8",
+    "description": "Offline music player with real-time visualizer.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

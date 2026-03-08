@@ -75,10 +75,26 @@ class _NenAppState extends ConsumerState<NenApp> {
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
 
+    // Update system chrome based on theme mode
+    final isDark = settings.themeMode == NenThemeMode.dark ||
+        (settings.themeMode == NenThemeMode.system &&
+            WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+                Brightness.dark);
+    SystemChrome.setSystemUIOverlayStyle(SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+      systemNavigationBarColor:
+          isDark ? NenTheme.trueBlack : NenTheme.backgroundPrimaryLight,
+      systemNavigationBarIconBrightness:
+          isDark ? Brightness.light : Brightness.dark,
+    ));
+
     return MaterialApp(
-      title: 'Nen',
+      title: '念 nen',
       debugShowCheckedModeBanner: false,
-      theme: NenTheme.build(accentColor: settings.customAccentColor),
+      theme: NenTheme.buildLight(accentColor: settings.customAccentColor),
+      darkTheme: NenTheme.buildDark(accentColor: settings.customAccentColor),
+      themeMode: settings.flutterThemeMode,
       home: const PermissionScreen(),
     );
   }

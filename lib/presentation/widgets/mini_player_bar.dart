@@ -62,6 +62,7 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar>
   Widget build(BuildContext context) {
     final playback = ref.watch(playbackProvider);
     final song = playback.currentSong;
+    final colors = NenTheme.of(context);
 
     if (song == null) return const SizedBox.shrink();
 
@@ -93,10 +94,10 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar>
                 filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.08),
+                    color: colors.glassSurface,
                     borderRadius: BorderRadius.circular(18),
                     border: Border.all(
-                      color: Colors.white.withValues(alpha: 0.1),
+                      color: colors.glassBorder,
                       width: 0.5,
                     ),
                   ),
@@ -125,7 +126,7 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar>
                               width: 46,
                               height: 46,
                               decoration: BoxDecoration(
-                                color: NenTheme.surfaceElevated,
+                                color: colors.surfaceElevated,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Icon(
@@ -145,8 +146,8 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar>
                                     song.title,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: NenTheme.textPrimary,
+                                    style: TextStyle(
+                                      color: colors.textPrimary,
                                       fontWeight: FontWeight.w500,
                                       fontSize: 14,
                                     ),
@@ -156,8 +157,8 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar>
                                     song.artist,
                                     maxLines: 1,
                                     overflow: TextOverflow.ellipsis,
-                                    style: const TextStyle(
-                                      color: NenTheme.textSecondary,
+                                    style: TextStyle(
+                                      color: colors.textSecondary,
                                       fontSize: 12,
                                     ),
                                   ),
@@ -172,9 +173,9 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar>
                             ),
                             // Next
                             IconButton(
-                              icon: const Icon(
+                              icon: Icon(
                                 Icons.skip_next_rounded,
-                                color: NenTheme.textSecondary,
+                                color: colors.textSecondary,
                                 size: 24,
                               ),
                               onPressed: () =>
@@ -241,13 +242,14 @@ class _AnimatedPlayPauseButtonState extends State<_AnimatedPlayPauseButton>
 
   @override
   Widget build(BuildContext context) {
+    final colors = NenTheme.of(context);
     return IconButton(
       iconSize: 30,
       onPressed: widget.onPressed,
       icon: AnimatedIcon(
         icon: AnimatedIcons.play_pause,
         progress: _controller,
-        color: NenTheme.textPrimary,
+        color: colors.textPrimary,
         size: 30,
       ),
     );

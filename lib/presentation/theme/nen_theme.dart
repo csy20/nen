@@ -1,115 +1,358 @@
 import 'package:flutter/material.dart';
 
-/// Nen app dark theme with true black background, glassmorphic and neumorphic styles.
+// ── Design Tokens ───────────────────────────────────────────────────
+// Japanese glassmorphic aesthetic with Ma (間) whitespace principles.
+
+/// Spacing scale based on 4px grid with generous Ma (間) whitespace.
+class NenSpacing {
+  NenSpacing._();
+  static const double xs = 4;
+  static const double sm = 8;
+  static const double md = 16;
+  static const double lg = 24;
+  static const double xl = 32;
+  static const double xxl = 48;
+  static const double xxxl = 64;
+}
+
+/// Border radius tokens.
+class NenRadius {
+  NenRadius._();
+  static const double card = 16;
+  static const double button = 12;
+  static const double modal = 24;
+  static const double pill = 999;
+}
+
+/// Shadow tokens for layered depth.
+class NenShadows {
+  NenShadows._();
+
+  static List<BoxShadow> get card => [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.12),
+          offset: const Offset(0, 4),
+          blurRadius: 24,
+        ),
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.08),
+          offset: const Offset(0, 1),
+          blurRadius: 4,
+        ),
+      ];
+
+  static List<BoxShadow> get elevated => [
+        BoxShadow(
+          color: const Color(0xFF1F2687).withValues(alpha: 0.25),
+          offset: const Offset(0, 8),
+          blurRadius: 32,
+        ),
+      ];
+
+  static List<BoxShadow> get inner => [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.06),
+          offset: const Offset(0, 2),
+          blurRadius: 4,
+        ),
+      ];
+}
+
+/// Mood color palette — Japanese-inspired names.
+class NenMoodColors {
+  NenMoodColors._();
+  static const Color sakura = Color(0xFFFFB7C5);     // calm
+  static const Color maple = Color(0xFFC41E3A);      // energy
+  static const Color matcha = Color(0xFF88AB75);      // joy
+  static const Color rain = Color(0xFF7BA7BC);        // melancholy
+  static const Color wisteria = Color(0xFF8B7EC8);    // focus
+  static const Color yuzu = Color(0xFFF5C518);        // anger/intensity
+}
+
+/// Nen app theme with dark-first Japanese glassmorphic aesthetic.
+/// Supports both dark and light modes via [buildDark] and [buildLight].
 class NenTheme {
   NenTheme._();
 
+  // ── Dark Mode Palette ──────────────────────────────────────────────
   static const Color trueBlack = Color(0xFF000000);
+  static const Color backgroundPrimaryDark = Color(0xFF1A1A2E);
+  static const Color backgroundSecondaryDark = Color(0xFF16213E);
   static const Color surfaceDark = Color(0xFF0A0A0A);
   static const Color surfaceElevated = Color(0xFF141414);
   static const Color surfaceOverlay = Color(0xFF1E1E1E);
-  static const Color textPrimary = Color(0xFFFFFFFF);
+  static const Color textPrimary = Color(0xFFF0F0F0);
   static const Color textSecondary = Color(0xFFB3B3B3);
   static const Color textTertiary = Color(0xFF666666);
-  static const Color defaultAccent = Color(0xFF6C5CE7);
 
-  /// Build the app theme with an optional dynamic accent color.
-  static ThemeData build({Color? accentColor}) {
+  // ── Light Mode Palette ─────────────────────────────────────────────
+  static const Color backgroundPrimaryLight = Color(0xFFF5F5F0);
+  static const Color backgroundSecondaryLight = Color(0xFFEAEAE5);
+  static const Color surfaceLight = Color(0xFFFFFFFF);
+  static const Color surfaceElevatedLight = Color(0xFFF0F0EB);
+  static const Color surfaceOverlayLight = Color(0xFFE8E8E3);
+  static const Color textPrimaryLight = Color(0xFF1A1A2E);
+  static const Color textSecondaryLight = Color(0xFF5A5A6E);
+  static const Color textTertiaryLight = Color(0xFF9999AA);
+
+  // ── Brand / Accent ─────────────────────────────────────────────────
+  static const Color defaultAccent = Color(0xFF8B7EC8); // wisteria purple
+
+  // ── Glass Surface Colors ───────────────────────────────────────────
+  static Color glassSurfaceDark = Colors.white.withValues(alpha: 0.08);
+  static Color glassSurfaceLight = Colors.white.withValues(alpha: 0.7);
+  static Color glassBorderDark = Colors.white.withValues(alpha: 0.12);
+  static Color glassBorderLight = Colors.black.withValues(alpha: 0.08);
+
+  // ── Typography constants ───────────────────────────────────────────
+  static const String _fontFamily = 'Noto Sans JP';
+  static const List<String> _fontFamilyFallback = [
+    'Inter',
+    '-apple-system',
+    'BlinkMacSystemFont',
+    'sans-serif',
+  ];
+
+  /// Build the dark theme with an optional dynamic accent color.
+  static ThemeData buildDark({Color? accentColor}) {
     final accent = accentColor ?? defaultAccent;
-    final colorScheme = ColorScheme.dark(
+    return _buildTheme(
+      brightness: Brightness.dark,
+      accent: accent,
+      scaffoldBg: trueBlack,
       surface: trueBlack,
-      primary: accent,
-      secondary: accent.withValues(alpha: 0.7),
-      onPrimary: Colors.white,
-      onSurface: textPrimary,
-      onSecondary: Colors.white,
-      error: const Color(0xFFCF6679),
+      surfaceElevatedColor: surfaceElevated,
+      overlayColor: surfaceOverlay,
+      textPrimaryColor: textPrimary,
+      textSecondaryColor: textSecondary,
+      textTertiaryColor: textTertiary,
+      navBarBg: trueBlack,
     );
+  }
+
+  /// Build the light theme with an optional dynamic accent color.
+  static ThemeData buildLight({Color? accentColor}) {
+    final accent = accentColor ?? defaultAccent;
+    return _buildTheme(
+      brightness: Brightness.light,
+      accent: accent,
+      scaffoldBg: backgroundPrimaryLight,
+      surface: backgroundPrimaryLight,
+      surfaceElevatedColor: surfaceElevatedLight,
+      overlayColor: surfaceOverlayLight,
+      textPrimaryColor: textPrimaryLight,
+      textSecondaryColor: textSecondaryLight,
+      textTertiaryColor: textTertiaryLight,
+      navBarBg: backgroundPrimaryLight,
+    );
+  }
+
+  /// Legacy build method — returns dark theme for backward compatibility.
+  static ThemeData build({Color? accentColor}) => buildDark(accentColor: accentColor);
+
+  static ThemeData _buildTheme({
+    required Brightness brightness,
+    required Color accent,
+    required Color scaffoldBg,
+    required Color surface,
+    required Color surfaceElevatedColor,
+    required Color overlayColor,
+    required Color textPrimaryColor,
+    required Color textSecondaryColor,
+    required Color textTertiaryColor,
+    required Color navBarBg,
+  }) {
+    final isDark = brightness == Brightness.dark;
+    final colorScheme = isDark
+        ? ColorScheme.dark(
+            surface: surface,
+            primary: accent,
+            secondary: accent.withValues(alpha: 0.7),
+            onPrimary: Colors.white,
+            onSurface: textPrimaryColor,
+            onSecondary: Colors.white,
+            error: const Color(0xFFCF6679),
+          )
+        : ColorScheme.light(
+            surface: surface,
+            primary: accent,
+            secondary: accent.withValues(alpha: 0.7),
+            onPrimary: Colors.white,
+            onSurface: textPrimaryColor,
+            onSecondary: Colors.white,
+            error: const Color(0xFFB00020),
+          );
 
     return ThemeData(
       useMaterial3: true,
-      brightness: Brightness.dark,
-      scaffoldBackgroundColor: trueBlack,
+      brightness: brightness,
+      scaffoldBackgroundColor: scaffoldBg,
       colorScheme: colorScheme,
-      appBarTheme: const AppBarTheme(
+      fontFamily: _fontFamily,
+      fontFamilyFallback: _fontFamilyFallback,
+      appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        centerTitle: true,
+        centerTitle: false, // Left-aligned branding
         titleTextStyle: TextStyle(
-          color: textPrimary,
+          fontFamily: _fontFamily,
+          fontFamilyFallback: _fontFamilyFallback,
+          color: textPrimaryColor,
           fontSize: 18,
           fontWeight: FontWeight.w600,
           letterSpacing: 0.5,
         ),
-        iconTheme: IconThemeData(color: textPrimary),
+        iconTheme: IconThemeData(color: textPrimaryColor),
       ),
       cardTheme: CardThemeData(
-        color: surfaceElevated,
+        color: surfaceElevatedColor,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(NenRadius.card),
         ),
       ),
-      iconTheme: const IconThemeData(color: textSecondary),
-      textTheme: const TextTheme(
+      iconTheme: IconThemeData(color: textSecondaryColor),
+      textTheme: TextTheme(
+        // Display — for 念 kanji branding
+        displayLarge: TextStyle(
+            fontFamily: _fontFamily,
+            color: textPrimaryColor,
+            fontSize: 32,
+            fontWeight: FontWeight.w800,
+            height: 1.2),
         headlineLarge: TextStyle(
-            color: textPrimary, fontSize: 28, fontWeight: FontWeight.bold),
+            color: textPrimaryColor, fontSize: 28, fontWeight: FontWeight.bold),
         headlineMedium: TextStyle(
-            color: textPrimary, fontSize: 22, fontWeight: FontWeight.w600),
+            color: textPrimaryColor, fontSize: 22, fontWeight: FontWeight.w600),
         titleLarge: TextStyle(
-            color: textPrimary, fontSize: 18, fontWeight: FontWeight.w600),
+            color: textPrimaryColor, fontSize: 18, fontWeight: FontWeight.w600),
         titleMedium: TextStyle(
-            color: textPrimary, fontSize: 16, fontWeight: FontWeight.w500),
-        bodyLarge: TextStyle(color: textPrimary, fontSize: 16),
-        bodyMedium: TextStyle(color: textSecondary, fontSize: 14),
-        bodySmall: TextStyle(color: textTertiary, fontSize: 12),
+            color: textPrimaryColor, fontSize: 16, fontWeight: FontWeight.w500),
+        bodyLarge: TextStyle(
+            color: textPrimaryColor, fontSize: 16, height: 1.6),
+        bodyMedium: TextStyle(color: textSecondaryColor, fontSize: 14),
+        bodySmall: TextStyle(color: textTertiaryColor, fontSize: 12),
         labelLarge: TextStyle(
-            color: textPrimary, fontSize: 14, fontWeight: FontWeight.w600),
+            color: textPrimaryColor, fontSize: 14, fontWeight: FontWeight.w600),
+        labelSmall: TextStyle(color: textTertiaryColor, fontSize: 11),
       ),
       sliderTheme: SliderThemeData(
         activeTrackColor: accent,
-        inactiveTrackColor: surfaceOverlay,
+        inactiveTrackColor: overlayColor,
         thumbColor: accent,
         overlayColor: accent.withValues(alpha: 0.2),
         trackHeight: 3,
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: trueBlack,
+        backgroundColor: navBarBg,
         selectedItemColor: accent,
-        unselectedItemColor: textTertiary,
+        unselectedItemColor: textTertiaryColor,
         type: BottomNavigationBarType.fixed,
         elevation: 0,
       ),
       switchTheme: SwitchThemeData(
         thumbColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) return accent;
-          return textTertiary;
+          return textTertiaryColor;
         }),
         trackColor: WidgetStateProperty.resolveWith((states) {
           if (states.contains(WidgetState.selected)) {
             return accent.withValues(alpha: 0.4);
           }
-          return surfaceOverlay;
+          return overlayColor;
         }),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: surfaceElevatedColor,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(NenRadius.modal),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: surfaceElevatedColor,
+        contentTextStyle: TextStyle(color: textPrimaryColor),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(NenRadius.button),
+        ),
+        behavior: SnackBarBehavior.floating,
+      ),
+      // Accessibility: visible focus indicators
+      focusColor: accent.withValues(alpha: 0.3),
+      hoverColor: accent.withValues(alpha: 0.1),
+      highlightColor: accent.withValues(alpha: 0.15),
+      splashColor: accent.withValues(alpha: 0.2),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: surfaceElevatedColor,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(NenRadius.button),
+          borderSide: BorderSide(color: textTertiaryColor),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(NenRadius.button),
+          borderSide: BorderSide(color: accent, width: 2),
+        ),
+        labelStyle: TextStyle(color: textSecondaryColor),
+        hintStyle: TextStyle(color: textTertiaryColor),
       ),
     );
   }
+
+  // ── Helper: resolve colors by brightness ───────────────────────────
+  /// Get context-aware colors based on current theme brightness.
+  static NenColors of(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return NenColors(isDark: isDark);
+  }
 }
 
-/// Glassmorphic container decoration.
+/// Context-aware color accessor for theme-dependent values.
+class NenColors {
+  final bool isDark;
+  const NenColors({required this.isDark});
+
+  Color get background =>
+      isDark ? NenTheme.trueBlack : NenTheme.backgroundPrimaryLight;
+  Color get backgroundSecondary =>
+      isDark ? NenTheme.backgroundSecondaryDark : NenTheme.backgroundSecondaryLight;
+  Color get surface =>
+      isDark ? NenTheme.surfaceDark : NenTheme.surfaceLight;
+  Color get surfaceElevated =>
+      isDark ? NenTheme.surfaceElevated : NenTheme.surfaceElevatedLight;
+  Color get surfaceOverlay =>
+      isDark ? NenTheme.surfaceOverlay : NenTheme.surfaceOverlayLight;
+  Color get textPrimary =>
+      isDark ? NenTheme.textPrimary : NenTheme.textPrimaryLight;
+  Color get textSecondary =>
+      isDark ? NenTheme.textSecondary : NenTheme.textSecondaryLight;
+  Color get textTertiary =>
+      isDark ? NenTheme.textTertiary : NenTheme.textTertiaryLight;
+  Color get glassSurface =>
+      isDark ? NenTheme.glassSurfaceDark : NenTheme.glassSurfaceLight;
+  Color get glassBorder =>
+      isDark ? NenTheme.glassBorderDark : NenTheme.glassBorderLight;
+}
+
+/// Glassmorphic container decoration — theme-aware.
 BoxDecoration glassmorphicDecoration({
   Color? color,
   double borderRadius = 20,
   double opacity = 0.08,
+  bool isDark = true,
 }) {
+  final surfaceColor = isDark
+      ? (color ?? Colors.white).withValues(alpha: opacity)
+      : (color ?? Colors.white).withValues(alpha: 0.7);
+  final borderColor = isDark
+      ? Colors.white.withValues(alpha: 0.06)
+      : Colors.black.withValues(alpha: 0.08);
+
   return BoxDecoration(
-    color: (color ?? Colors.white).withValues(alpha: opacity),
+    color: surfaceColor,
     borderRadius: BorderRadius.circular(borderRadius),
-    border: Border.all(
-      color: Colors.white.withValues(alpha: 0.06),
-      width: 1,
-    ),
+    border: Border.all(color: borderColor, width: 1),
+    boxShadow: NenShadows.card,
   );
 }
 
@@ -149,3 +392,6 @@ BoxDecoration neumorphicDecoration({
           ],
   );
 }
+
+/// Theme mode options for the app.
+enum NenThemeMode { dark, light, system }

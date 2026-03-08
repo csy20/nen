@@ -103,12 +103,13 @@ class _AudioVisualizerWidgetState extends ConsumerState<AudioVisualizerWidget>
 
     if (!_shaderLoaded || _shader == null) {
       // Fallback: simple animated gradient
+      final colors = NenTheme.of(context);
       return Container(
         decoration: BoxDecoration(
           gradient: RadialGradient(
             colors: [
               widget.accentColor.withValues(alpha: 0.3),
-              NenTheme.trueBlack,
+              colors.background,
             ],
           ),
         ),

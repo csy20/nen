@@ -68,8 +68,10 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NenTheme.of(context);
+
     return Scaffold(
-      backgroundColor: NenTheme.trueBlack,
+      backgroundColor: colors.background,
       body: Center(
         child: _loading
             ? const CircularProgressIndicator()
@@ -77,6 +79,7 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 40),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Icon(
                       Icons.music_note_rounded,
@@ -84,21 +87,37 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
                       color: Theme.of(context).colorScheme.primary,
                     ),
                     const SizedBox(height: 32),
-                    const Text(
-                      'nen',
+                    // 念 kanji branding with glow
+                    Text(
+                      '念',
                       style: TextStyle(
-                        color: NenTheme.textPrimary,
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
+                        color: colors.textPrimary,
+                        fontSize: 48,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 2,
+                        shadows: [
+                          Shadow(
+                            color: NenTheme.defaultAccent.withValues(alpha: 0.6),
+                            blurRadius: 16,
+                          ),
+                        ],
+                      ),
+                    ),
+                    Text(
+                      'ネン',
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w400,
                         letterSpacing: 4,
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    const Text(
-                      'Nen needs access to your music library to play songs.',
-                      textAlign: TextAlign.center,
+                    const SizedBox(height: 24),
+                    Text(
+                      '念 needs access to your music library to play songs.',
+                      textAlign: TextAlign.start,
                       style: TextStyle(
-                        color: NenTheme.textSecondary,
+                        color: colors.textSecondary,
                         fontSize: 14,
                       ),
                     ),
@@ -113,7 +132,7 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
+                            borderRadius: BorderRadius.circular(NenRadius.button),
                           ),
                         ),
                         child: const Text(
@@ -127,11 +146,11 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
                     ),
                     if (!_granted) ...[
                       const SizedBox(height: 12),
-                      const Text(
+                      Text(
                         'We only access audio files on your device.\nNo data is collected or uploaded.',
-                        textAlign: TextAlign.center,
+                        textAlign: TextAlign.start,
                         style: TextStyle(
-                          color: NenTheme.textTertiary,
+                          color: colors.textTertiary,
                           fontSize: 11,
                         ),
                       ),

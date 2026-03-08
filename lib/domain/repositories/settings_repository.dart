@@ -15,6 +15,14 @@ abstract class SettingsRepository {
   Future<int> getCrossfadeDuration();
   Future<void> setCrossfadeDuration(int seconds);
 
+  // Theme mode: 0=dark, 1=light, 2=system
+  Future<int> getThemeMode();
+  Future<void> setThemeMode(int value);
+
+  // High contrast mode
+  Future<bool> getHighContrast();
+  Future<void> setHighContrast(bool value);
+
   // Favorites
   Future<List<int>> getFavoriteIds();
   Future<void> setFavoriteIds(List<int> ids);

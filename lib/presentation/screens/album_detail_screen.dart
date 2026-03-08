@@ -14,17 +14,18 @@ class AlbumDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NenTheme.of(context);
     final songsAsync = ref.watch(songsByAlbumProvider(album.id));
 
     return Scaffold(
-      backgroundColor: NenTheme.trueBlack,
+      backgroundColor: colors.background,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
           SliverAppBar(
             expandedHeight: 260,
             pinned: true,
-            backgroundColor: NenTheme.trueBlack,
+            backgroundColor: colors.background,
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
                 album.name,
@@ -42,7 +43,7 @@ class AlbumDetailScreen extends ConsumerWidget {
                           .colorScheme
                           .primary
                           .withValues(alpha: 0.3),
-                      NenTheme.trueBlack,
+                      colors.background,
                     ],
                   ),
                 ),
@@ -66,16 +67,16 @@ class AlbumDetailScreen extends ConsumerWidget {
                 children: [
                   Text(
                     album.artist,
-                    style: const TextStyle(
-                      color: NenTheme.textSecondary,
+                    style: TextStyle(
+                      color: colors.textSecondary,
                       fontSize: 14,
                     ),
                   ),
                   const Spacer(),
                   Text(
                     '${album.songCount} songs',
-                    style: const TextStyle(
-                      color: NenTheme.textTertiary,
+                    style: TextStyle(
+                      color: colors.textTertiary,
                       fontSize: 12,
                     ),
                   ),
@@ -132,7 +133,7 @@ class AlbumDetailScreen extends ConsumerWidget {
             error: (e, _) => SliverFillRemaining(
               child: Center(
                 child: Text('Error: $e',
-                    style: const TextStyle(color: NenTheme.textSecondary)),
+                    style: TextStyle(color: colors.textSecondary)),
               ),
             ),
           ),

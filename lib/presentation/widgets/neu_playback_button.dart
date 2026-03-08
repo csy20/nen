@@ -102,6 +102,7 @@ class _NeuPlaybackButtonState extends ConsumerState<NeuPlaybackButton>
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
     final useAnimation = !settings.reduceMotion;
+    final colors = NenTheme.of(context);
 
     return GestureDetector(
       onTapDown: _onTapDown,
@@ -123,7 +124,7 @@ class _NeuPlaybackButtonState extends ConsumerState<NeuPlaybackButton>
                         .colorScheme
                         .primary
                         .withValues(alpha: 0.15)
-                    : NenTheme.surfaceDark,
+                    : colors.surface,
               ),
               child: Center(
                 child: widget.animatePlayPause
@@ -132,14 +133,14 @@ class _NeuPlaybackButtonState extends ConsumerState<NeuPlaybackButton>
                         progress: _iconMorphController,
                         color: widget.isPrimary
                             ? Theme.of(context).colorScheme.primary
-                            : NenTheme.textPrimary,
+                            : colors.textPrimary,
                         size: widget.size * 0.5,
                       )
                     : Icon(
                         widget.icon,
                         color: widget.isPrimary
                             ? Theme.of(context).colorScheme.primary
-                            : NenTheme.textPrimary,
+                            : colors.textPrimary,
                         size: widget.size * 0.5,
                       ),
               ),

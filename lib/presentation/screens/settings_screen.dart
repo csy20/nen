@@ -22,9 +22,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
+    final colors = NenTheme.of(context);
 
     return Scaffold(
-      backgroundColor: NenTheme.trueBlack,
+      backgroundColor: colors.background,
       appBar: AppBar(title: const Text('Settings')),
       body: ListView(
         physics: const BouncingScrollPhysics(),
@@ -35,11 +36,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _sectionHeader('Accessibility'),
 
           SwitchListTile(
-            title: const Text('Reduce Motion',
-                style: TextStyle(color: NenTheme.textPrimary)),
-            subtitle: const Text(
+            title: Text('Reduce Motion',
+                style: TextStyle(color: colors.textPrimary)),
+            subtitle: Text(
               'Reduces animations and visualizer motion effects',
-              style: TextStyle(color: NenTheme.textTertiary, fontSize: 12),
+              style: TextStyle(color: colors.textTertiary, fontSize: 12),
             ),
             value: settings.reduceMotion,
             onChanged: (_) =>
@@ -47,28 +48,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
 
           SwitchListTile(
-            title: const Text('Reduce Flash',
-                style: TextStyle(color: NenTheme.textPrimary)),
-            subtitle: const Text(
+            title: Text('Reduce Flash',
+                style: TextStyle(color: colors.textPrimary)),
+            subtitle: Text(
               'Disables rapid brightness changes in the visualizer',
-              style: TextStyle(color: NenTheme.textTertiary, fontSize: 12),
+              style: TextStyle(color: colors.textTertiary, fontSize: 12),
             ),
             value: settings.reduceFlash,
             onChanged: (_) =>
                 ref.read(settingsProvider.notifier).toggleReduceFlash(),
           ),
 
-          const Divider(color: NenTheme.surfaceOverlay, height: 32),
+          SwitchListTile(
+            title: Text('High Contrast',
+                style: TextStyle(color: colors.textPrimary)),
+            subtitle: Text(
+              'Increases borders and removes blur effects',
+              style: TextStyle(color: colors.textTertiary, fontSize: 12),
+            ),
+            value: settings.highContrast,
+            onChanged: (_) =>
+                ref.read(settingsProvider.notifier).toggleHighContrast(),
+          ),
+
+          Divider(color: colors.surfaceOverlay, height: 32),
 
           // Playback section
           _sectionHeader('Playback'),
 
           SwitchListTile(
-            title: const Text('Crossfade',
-                style: TextStyle(color: NenTheme.textPrimary)),
+            title: Text('Crossfade',
+                style: TextStyle(color: colors.textPrimary)),
             subtitle: Text(
               'Smooth ${settings.crossfadeDuration}s transition between tracks',
-              style: const TextStyle(color: NenTheme.textTertiary, fontSize: 12),
+              style: TextStyle(color: colors.textTertiary, fontSize: 12),
             ),
             value: settings.crossfadeEnabled,
             onChanged: (_) =>
@@ -80,8 +93,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
-                  const Text('Duration',
-                      style: TextStyle(color: NenTheme.textSecondary, fontSize: 13)),
+                  Text('Duration',
+                      style: TextStyle(color: colors.textSecondary, fontSize: 13)),
                   Expanded(
                     child: Slider(
                       value: settings.crossfadeDuration.toDouble(),
@@ -95,25 +108,65 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   ),
                   Text('${settings.crossfadeDuration}s',
-                      style: const TextStyle(
-                          color: NenTheme.textTertiary, fontSize: 12)),
+                      style: TextStyle(
+                          color: colors.textTertiary, fontSize: 12)),
                 ],
               ),
             ),
 
-          const Divider(color: NenTheme.surfaceOverlay, height: 32),
+          Divider(color: colors.surfaceOverlay, height: 32),
 
           // Appearance section
           _sectionHeader('Appearance'),
 
+          // Theme mode selector
           ListTile(
-            title: const Text('Accent Color',
-                style: TextStyle(color: NenTheme.textPrimary)),
+            title: Text('Theme',
+                style: TextStyle(color: colors.textPrimary)),
+            subtitle: Text(
+              settings.themeMode == NenThemeMode.dark
+                  ? 'Dark'
+                  : settings.themeMode == NenThemeMode.light
+                      ? 'Light'
+                      : 'System',
+              style: TextStyle(color: colors.textTertiary, fontSize: 12),
+            ),
+            trailing: SegmentedButton<NenThemeMode>(
+              segments: const [
+                ButtonSegment(
+                  value: NenThemeMode.dark,
+                  icon: Icon(Icons.dark_mode_rounded, size: 18),
+                ),
+                ButtonSegment(
+                  value: NenThemeMode.system,
+                  icon: Icon(Icons.brightness_auto_rounded, size: 18),
+                ),
+                ButtonSegment(
+                  value: NenThemeMode.light,
+                  icon: Icon(Icons.light_mode_rounded, size: 18),
+                ),
+              ],
+              selected: {settings.themeMode},
+              onSelectionChanged: (selection) {
+                ref
+                    .read(settingsProvider.notifier)
+                    .setThemeMode(selection.first);
+              },
+              style: ButtonStyle(
+                visualDensity: VisualDensity.compact,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ),
+
+          ListTile(
+            title: Text('Accent Color',
+                style: TextStyle(color: colors.textPrimary)),
             subtitle: Text(
               settings.customAccentColor != null
                   ? 'Custom color set'
                   : 'Dynamic from album art',
-              style: const TextStyle(color: NenTheme.textTertiary, fontSize: 12),
+              style: TextStyle(color: colors.textTertiary, fontSize: 12),
             ),
             trailing: Container(
               width: 32,
@@ -128,43 +181,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             onTap: () => _showColorPicker(context),
           ),
 
-          const Divider(color: NenTheme.surfaceOverlay, height: 32),
+          Divider(color: colors.surfaceOverlay, height: 32),
 
           // Library section
           _sectionHeader('Library'),
 
           ListTile(
-            title: const Text('Rescan Media',
-                style: TextStyle(color: NenTheme.textPrimary)),
-            subtitle: const Text(
+            title: Text('Rescan Media',
+                style: TextStyle(color: colors.textPrimary)),
+            subtitle: Text(
               'Scan device for new music files',
-              style: TextStyle(color: NenTheme.textTertiary, fontSize: 12),
+              style: TextStyle(color: colors.textTertiary, fontSize: 12),
             ),
-            leading: const Icon(Icons.refresh_rounded,
-                color: NenTheme.textSecondary),
+            leading: Icon(Icons.refresh_rounded,
+                color: colors.textSecondary),
             onTap: () => _rescanMedia(context),
           ),
 
-          const Divider(color: NenTheme.surfaceOverlay, height: 32),
+          Divider(color: colors.surfaceOverlay, height: 32),
 
           // About section
           _sectionHeader('About'),
 
-          const ListTile(
-            title: Text('Nen Music Player',
-                style: TextStyle(color: NenTheme.textPrimary)),
+          ListTile(
+            title: Text('念 Music Player',
+                style: TextStyle(color: colors.textPrimary)),
             subtitle: Text(
               'Version 1.0.0\nOffline music with real-time visualizer',
-              style: TextStyle(color: NenTheme.textTertiary, fontSize: 12),
+              style: TextStyle(color: colors.textTertiary, fontSize: 12),
             ),
           ),
 
-          const ListTile(
+          ListTile(
             title: Text('Audio Engine',
-                style: TextStyle(color: NenTheme.textPrimary)),
+                style: TextStyle(color: colors.textPrimary)),
             subtitle: Text(
               'Powered by flutter_soloud (C++ SoLoud)',
-              style: TextStyle(color: NenTheme.textTertiary, fontSize: 12),
+              style: TextStyle(color: colors.textTertiary, fontSize: 12),
             ),
           ),
         ],
@@ -188,9 +241,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _showColorPicker(BuildContext context) {
-    final colors = [
+    final colors = NenTheme.of(context);
+    final colorOptions = [
       null, // dynamic / reset
-      const Color(0xFF6C5CE7),
+      const Color(0xFF8B7EC8), // wisteria (default accent)
       const Color(0xFFE84393),
       const Color(0xFF00B894),
       const Color(0xFF0984E3),
@@ -205,9 +259,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     showModalBottomSheet(
       context: context,
-      backgroundColor: NenTheme.surfaceElevated,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      backgroundColor: colors.surfaceElevated,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(NenRadius.modal)),
       ),
       builder: (ctx) => Padding(
         padding: const EdgeInsets.all(24),
@@ -215,16 +269,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Choose Accent Color',
+            Text('Choose Accent Color',
                 style: TextStyle(
-                    color: NenTheme.textPrimary,
+                    color: colors.textPrimary,
                     fontSize: 18,
                     fontWeight: FontWeight.w600)),
             const SizedBox(height: 16),
             Wrap(
               spacing: 12,
               runSpacing: 12,
-              children: colors.map((color) {
+              children: colorOptions.map((color) {
                 final isSelected = color == ref.read(settingsProvider).customAccentColor ||
                     (color == null && ref.read(settingsProvider).customAccentColor == null);
                 return GestureDetector(

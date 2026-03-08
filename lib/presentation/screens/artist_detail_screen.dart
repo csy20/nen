@@ -14,17 +14,18 @@ class ArtistDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NenTheme.of(context);
     final songsAsync = ref.watch(songsByArtistProvider(artist.id));
 
     return Scaffold(
-      backgroundColor: NenTheme.trueBlack,
+      backgroundColor: colors.background,
       body: CustomScrollView(
         physics: const BouncingScrollPhysics(),
         slivers: [
           SliverAppBar(
             expandedHeight: 220,
             pinned: true,
-            backgroundColor: NenTheme.trueBlack,
+            backgroundColor: colors.background,
             flexibleSpace: FlexibleSpaceBar(
               title: Text(
                 artist.name,
@@ -42,7 +43,7 @@ class ArtistDetailScreen extends ConsumerWidget {
                           .colorScheme
                           .primary
                           .withValues(alpha: 0.25),
-                      NenTheme.trueBlack,
+                      colors.background,
                     ],
                   ),
                 ),
@@ -64,8 +65,8 @@ class ArtistDetailScreen extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               child: Text(
                 '${artist.songCount} songs · ${artist.albumCount} albums',
-                style: const TextStyle(
-                  color: NenTheme.textTertiary,
+                style: TextStyle(
+                  color: colors.textTertiary,
                   fontSize: 12,
                 ),
               ),
@@ -119,7 +120,7 @@ class ArtistDetailScreen extends ConsumerWidget {
             error: (e, _) => SliverFillRemaining(
               child: Center(
                 child: Text('Error: $e',
-                    style: const TextStyle(color: NenTheme.textSecondary)),
+                    style: TextStyle(color: colors.textSecondary)),
               ),
             ),
           ),

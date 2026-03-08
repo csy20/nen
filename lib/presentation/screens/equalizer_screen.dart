@@ -15,6 +15,7 @@ class EqualizerScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NenTheme.of(context);
     final eq = ref.watch(equalizerProvider);
 
     return Scaffold(
@@ -44,11 +45,11 @@ class EqualizerScreen extends ConsumerWidget {
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 children: [
-                  _presetChip(ref, 'Flat', [1,1,1,1,1,1,1,1]),
-                  _presetChip(ref, 'Bass Boost', [2.5,2.0,1.5,1,1,1,1,1]),
-                  _presetChip(ref, 'Treble Boost', [1,1,1,1,1.5,2.0,2.5,3.0]),
-                  _presetChip(ref, 'V-Shape', [2.5,1.8,1,0.8,0.8,1,1.8,2.5]),
-                  _presetChip(ref, 'Vocal', [0.8,1,1.5,2.0,2.0,1.5,1,0.8]),
+                  _presetChip(ref, colors, 'Flat', [1,1,1,1,1,1,1,1]),
+                  _presetChip(ref, colors, 'Bass Boost', [2.5,2.0,1.5,1,1,1,1,1]),
+                  _presetChip(ref, colors, 'Treble Boost', [1,1,1,1,1.5,2.0,2.5,3.0]),
+                  _presetChip(ref, colors, 'V-Shape', [2.5,1.8,1,0.8,0.8,1,1.8,2.5]),
+                  _presetChip(ref, colors, 'Vocal', [0.8,1,1.5,2.0,2.0,1.5,1,0.8]),
                 ],
               ),
             ),
@@ -76,12 +77,12 @@ class EqualizerScreen extends ConsumerWidget {
     );
   }
 
-  Widget _presetChip(WidgetRef ref, String name, List<double> bands) {
+  Widget _presetChip(WidgetRef ref, dynamic colors, String name, List<double> bands) {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: ActionChip(
         label: Text(name, style: const TextStyle(fontSize: 12)),
-        backgroundColor: NenTheme.surfaceElevated,
+        backgroundColor: colors.surfaceElevated,
         onPressed: () async {
           final notifier = ref.read(equalizerProvider.notifier);
           for (int i = 0; i < 8; i++) {
@@ -108,12 +109,13 @@ class _BandSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NenTheme.of(context);
     return Column(
       children: [
         Text(
           '${value.toStringAsFixed(1)}x',
           style: TextStyle(
-            color: enabled ? NenTheme.textSecondary : NenTheme.textTertiary,
+            color: enabled ? colors.textSecondary : colors.textTertiary,
             fontSize: 10,
           ),
         ),
@@ -131,7 +133,7 @@ class _BandSlider extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            color: enabled ? NenTheme.textSecondary : NenTheme.textTertiary,
+            color: enabled ? colors.textSecondary : colors.textTertiary,
             fontSize: 9,
           ),
         ),

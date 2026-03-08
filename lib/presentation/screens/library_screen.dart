@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/providers.dart';
 import '../theme/nen_theme.dart';
+import '../theme/page_transitions.dart';
 import '../widgets/mini_player_bar.dart';
 import '../widgets/song_tile.dart';
 import 'album_detail_screen.dart';
@@ -34,11 +35,58 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NenTheme.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      backgroundColor: NenTheme.trueBlack,
+      backgroundColor: colors.background,
       appBar: AppBar(
-        title: const Text('nen'),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.baseline,
+          textBaseline: TextBaseline.ideographic,
+          children: [
+            Text(
+              '念',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w800,
+                color: colors.textPrimary,
+                shadows: [
+                  Shadow(
+                    color: NenTheme.defaultAccent.withValues(alpha: 0.5),
+                    blurRadius: 12,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text(
+              'ネン',
+              style: TextStyle(
+                fontSize: 12,
+                fontWeight: FontWeight.w400,
+                color: colors.textSecondary,
+              ),
+            ),
+          ],
+        ),
         actions: [
+          // Theme toggle
+          IconButton(
+            icon: Icon(
+              isDark ? Icons.light_mode_rounded : Icons.dark_mode_rounded,
+              size: 22,
+            ),
+            onPressed: () {
+              final current = ref.read(settingsProvider).themeMode;
+              final next = current == NenThemeMode.dark
+                  ? NenThemeMode.light
+                  : NenThemeMode.dark;
+              ref.read(settingsProvider.notifier).setThemeMode(next);
+            },
+            tooltip: isDark ? 'Switch to light mode' : 'Switch to dark mode',
+          ),
           IconButton(
             icon: const Icon(Icons.search_rounded),
             onPressed: () => _showSearch(context),
@@ -48,7 +96,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             icon: const Icon(Icons.settings_rounded),
             onPressed: () => Navigator.push(
               context,
-              MaterialPageRoute(builder: (_) => const SettingsScreen()),
+              NenSlideRoute(builder: (_) => const SettingsScreen()),
             ),
             tooltip: 'Settings',
           ),
@@ -141,24 +189,25 @@ class _SongsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NenTheme.of(context);
     final songsAsync = ref.watch(songsProvider);
     final recentIds = ref.watch(recentlyPlayedProvider);
 
     return songsAsync.when(
       data: (songs) {
         if (songs.isEmpty) {
-          return const Center(
+          return Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.music_off_rounded, size: 64,
-                    color: NenTheme.textTertiary),
-                SizedBox(height: 16),
+                    color: colors.textTertiary),
+                const SizedBox(height: 16),
                 Text('No songs found',
-                    style: TextStyle(color: NenTheme.textSecondary)),
-                SizedBox(height: 8),
+                    style: TextStyle(color: colors.textSecondary)),
+                const SizedBox(height: 8),
                 Text('Add music to your device to get started',
-                    style: TextStyle(color: NenTheme.textTertiary,
+                    style: TextStyle(color: colors.textTertiary,
                         fontSize: 12)),
               ],
             ),
@@ -178,12 +227,12 @@ class _SongsTab extends ConsumerWidget {
           physics: const BouncingScrollPhysics(),
           slivers: [
             if (recentSongs.isNotEmpty) ...[
-              const SliverToBoxAdapter(
+              SliverToBoxAdapter(
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(16, 12, 16, 4),
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
                   child: Text('Recently Played',
                       style: TextStyle(
-                          color: NenTheme.textSecondary,
+                          color: colors.textSecondary,
                           fontSize: 13,
                           fontWeight: FontWeight.w600)),
                 ),
@@ -203,9 +252,9 @@ class _SongsTab extends ConsumerWidget {
                           label: Text(song.title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                  color: NenTheme.textPrimary, fontSize: 12)),
-                          backgroundColor: NenTheme.surfaceElevated,
+                              style: TextStyle(
+                                  color: colors.textPrimary, fontSize: 12)),
+                          backgroundColor: colors.surfaceElevated,
                           onPressed: () {
                             ref.read(playbackProvider.notifier).playSong(song);
                           },
@@ -215,12 +264,12 @@ class _SongsTab extends ConsumerWidget {
                   ),
                 ),
               ),
-              const SliverToBoxAdapter(
+              SliverToBoxAdapter(
                 child: Padding(
-                  padding: EdgeInsets.fromLTRB(16, 8, 16, 4),
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                   child: Text('All Songs',
                       style: TextStyle(
-                          color: NenTheme.textSecondary,
+                          color: colors.textSecondary,
                           fontSize: 13,
                           fontWeight: FontWeight.w600)),
                 ),
@@ -247,7 +296,7 @@ class _SongsTab extends ConsumerWidget {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(
         child: Text('Error: $e',
-            style: const TextStyle(color: NenTheme.textSecondary)),
+            style: TextStyle(color: colors.textSecondary)),
       ),
     );
   }
@@ -260,6 +309,7 @@ class _FavoritesTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NenTheme.of(context);
     final favoriteIds = ref.watch(favoritesProvider);
     final songsAsync = ref.watch(songsProvider);
 
@@ -269,19 +319,19 @@ class _FavoritesTab extends ConsumerWidget {
             allSongs.where((s) => favoriteIds.contains(s.id)).toList();
 
         if (favSongs.isEmpty) {
-          return const Center(
+          return Center(
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 Icon(Icons.favorite_border_rounded,
-                    size: 64, color: NenTheme.textTertiary),
-                SizedBox(height: 16),
+                    size: 64, color: colors.textTertiary),
+                const SizedBox(height: 16),
                 Text('No favorites yet',
-                    style: TextStyle(color: NenTheme.textSecondary)),
-                SizedBox(height: 8),
+                    style: TextStyle(color: colors.textSecondary)),
+                const SizedBox(height: 8),
                 Text('Tap the ♥ icon on songs to add them here',
                     style: TextStyle(
-                        color: NenTheme.textTertiary, fontSize: 12)),
+                        color: colors.textTertiary, fontSize: 12)),
               ],
             ),
           );
@@ -294,8 +344,8 @@ class _FavoritesTab extends ConsumerWidget {
               child: Row(
                 children: [
                   Text('${favSongs.length} favorites',
-                      style: const TextStyle(
-                          color: NenTheme.textSecondary, fontSize: 12)),
+                      style: TextStyle(
+                          color: colors.textSecondary, fontSize: 12)),
                   const Spacer(),
                   ElevatedButton.icon(
                     onPressed: () => ref
@@ -342,7 +392,7 @@ class _FavoritesTab extends ConsumerWidget {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(
         child: Text('Error: $e',
-            style: const TextStyle(color: NenTheme.textSecondary)),
+            style: TextStyle(color: colors.textSecondary)),
       ),
     );
   }
@@ -355,14 +405,15 @@ class _AlbumsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NenTheme.of(context);
     final albumsAsync = ref.watch(albumsProvider);
 
     return albumsAsync.when(
       data: (albums) {
         if (albums.isEmpty) {
-          return const Center(
+          return Center(
             child: Text('No albums found',
-                style: TextStyle(color: NenTheme.textSecondary)),
+                style: TextStyle(color: colors.textSecondary)),
           );
         }
 
@@ -381,7 +432,7 @@ class _AlbumsTab extends ConsumerWidget {
             return GestureDetector(
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute(
+                NenSlideRoute(
                   builder: (_) => AlbumDetailScreen(album: album),
                 ),
               ),
@@ -391,7 +442,7 @@ class _AlbumsTab extends ConsumerWidget {
                   Expanded(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: NenTheme.surfaceElevated,
+                        color: colors.surfaceElevated,
                         borderRadius: BorderRadius.circular(12),
                       ),
                       child: Center(
@@ -411,8 +462,8 @@ class _AlbumsTab extends ConsumerWidget {
                     album.name,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: NenTheme.textPrimary,
+                    style: TextStyle(
+                      color: colors.textPrimary,
                       fontWeight: FontWeight.w500,
                       fontSize: 13,
                     ),
@@ -421,8 +472,8 @@ class _AlbumsTab extends ConsumerWidget {
                     album.artist,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: NenTheme.textTertiary,
+                    style: TextStyle(
+                      color: colors.textTertiary,
                       fontSize: 11,
                     ),
                   ),
@@ -435,7 +486,7 @@ class _AlbumsTab extends ConsumerWidget {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(
         child: Text('Error: $e',
-            style: const TextStyle(color: NenTheme.textSecondary)),
+            style: TextStyle(color: colors.textSecondary)),
       ),
     );
   }
@@ -448,14 +499,15 @@ class _ArtistsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NenTheme.of(context);
     final artistsAsync = ref.watch(artistsProvider);
 
     return artistsAsync.when(
       data: (artists) {
         if (artists.isEmpty) {
-          return const Center(
+          return Center(
             child: Text('No artists found',
-                style: TextStyle(color: NenTheme.textSecondary)),
+                style: TextStyle(color: colors.textSecondary)),
           );
         }
 
@@ -466,7 +518,7 @@ class _ArtistsTab extends ConsumerWidget {
             final artist = artists[index];
             return ListTile(
               leading: CircleAvatar(
-                backgroundColor: NenTheme.surfaceElevated,
+                backgroundColor: colors.surfaceElevated,
                 child: Icon(
                   Icons.person_rounded,
                   color: Theme.of(context)
@@ -476,15 +528,15 @@ class _ArtistsTab extends ConsumerWidget {
                 ),
               ),
               title: Text(artist.name,
-                  style: const TextStyle(color: NenTheme.textPrimary)),
+                  style: TextStyle(color: colors.textPrimary)),
               subtitle: Text(
                 '${artist.songCount} songs · ${artist.albumCount} albums',
-                style: const TextStyle(
-                    color: NenTheme.textTertiary, fontSize: 12),
+                style: TextStyle(
+                    color: colors.textTertiary, fontSize: 12),
               ),
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute(
+                NenSlideRoute(
                   builder: (_) => ArtistDetailScreen(artist: artist),
                 ),
               ),
@@ -495,7 +547,7 @@ class _ArtistsTab extends ConsumerWidget {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(
         child: Text('Error: $e',
-            style: const TextStyle(color: NenTheme.textSecondary)),
+            style: TextStyle(color: colors.textSecondary)),
       ),
     );
   }
@@ -508,14 +560,15 @@ class _FoldersTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NenTheme.of(context);
     final foldersAsync = ref.watch(foldersProvider);
 
     return foldersAsync.when(
       data: (folders) {
         if (folders.isEmpty) {
-          return const Center(
+          return Center(
             child: Text('No folders found',
-                style: TextStyle(color: NenTheme.textSecondary)),
+                style: TextStyle(color: colors.textSecondary)),
           );
         }
 
@@ -530,7 +583,7 @@ class _FoldersTab extends ConsumerWidget {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  color: NenTheme.surfaceElevated,
+                  color: colors.surfaceElevated,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(Icons.folder_rounded,
@@ -542,15 +595,15 @@ class _FoldersTab extends ConsumerWidget {
               title: Text(folderName,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(color: NenTheme.textPrimary)),
+                  style: TextStyle(color: colors.textPrimary)),
               subtitle: Text(folder,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
-                      color: NenTheme.textTertiary, fontSize: 11)),
+                  style: TextStyle(
+                      color: colors.textTertiary, fontSize: 11)),
               onTap: () => Navigator.push(
                 context,
-                MaterialPageRoute(
+                NenSlideRoute(
                   builder: (_) =>
                       _FolderDetailScreen(path: folder, name: folderName),
                 ),
@@ -562,7 +615,7 @@ class _FoldersTab extends ConsumerWidget {
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (e, _) => Center(
         child: Text('Error: $e',
-            style: const TextStyle(color: NenTheme.textSecondary)),
+            style: TextStyle(color: colors.textSecondary)),
       ),
     );
   }
@@ -576,17 +629,18 @@ class _FolderDetailScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NenTheme.of(context);
     final songsAsync = ref.watch(songsByFolderProvider(path));
 
     return Scaffold(
-      backgroundColor: NenTheme.trueBlack,
+      backgroundColor: colors.background,
       appBar: AppBar(title: Text(name)),
       body: songsAsync.when(
         data: (songs) {
           if (songs.isEmpty) {
-            return const Center(
+            return Center(
               child: Text('No songs in this folder',
-                  style: TextStyle(color: NenTheme.textSecondary)),
+                  style: TextStyle(color: colors.textSecondary)),
             );
           }
 
@@ -597,8 +651,8 @@ class _FolderDetailScreen extends ConsumerWidget {
                 child: Row(
                   children: [
                     Text('${songs.length} songs',
-                        style: const TextStyle(
-                            color: NenTheme.textTertiary, fontSize: 12)),
+                        style: TextStyle(
+                            color: colors.textTertiary, fontSize: 12)),
                     const Spacer(),
                     ElevatedButton.icon(
                       onPressed: () => ref
@@ -642,7 +696,7 @@ class _FolderDetailScreen extends ConsumerWidget {
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
           child: Text('Error: $e',
-              style: const TextStyle(color: NenTheme.textSecondary)),
+              style: TextStyle(color: colors.textSecondary)),
         ),
       ),
     );
@@ -658,10 +712,11 @@ class _SongSearchDelegate extends SearchDelegate<String> {
 
   @override
   ThemeData appBarTheme(BuildContext context) {
-    return NenTheme.build().copyWith(
-      inputDecorationTheme: const InputDecorationTheme(
+    final colors = NenTheme.of(context);
+    return Theme.of(context).copyWith(
+      inputDecorationTheme: InputDecorationTheme(
         border: InputBorder.none,
-        hintStyle: TextStyle(color: NenTheme.textTertiary),
+        hintStyle: TextStyle(color: colors.textTertiary),
       ),
     );
   }
@@ -692,6 +747,7 @@ class _SongSearchDelegate extends SearchDelegate<String> {
 
   Widget _buildContent() {
     return Consumer(builder: (context, ref, _) {
+      final colors = NenTheme.of(context);
       ref.read(searchQueryProvider.notifier).state = query;
       final results = ref.watch(searchResultsProvider);
 
@@ -701,7 +757,7 @@ class _SongSearchDelegate extends SearchDelegate<String> {
             return Center(
               child: Text(
                 query.isEmpty ? 'Search for songs' : 'No results',
-                style: const TextStyle(color: NenTheme.textSecondary),
+                style: TextStyle(color: colors.textSecondary),
               ),
             );
           }

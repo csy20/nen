@@ -11,6 +11,8 @@ class SettingsRepositoryImpl implements SettingsRepository {
   static const _playbackSpeedKey = 'playback_speed';
   static const _crossfadeEnabledKey = 'crossfade_enabled';
   static const _crossfadeDurationKey = 'crossfade_duration';
+  static const _themeModeKey = 'theme_mode';
+  static const _highContrastKey = 'high_contrast';
   static const _favoriteIdsKey = 'favorite_ids';
   static const _recentSongIdsKey = 'recent_song_ids';
 
@@ -124,5 +126,29 @@ class SettingsRepositoryImpl implements SettingsRepository {
   Future<void> setRecentSongIds(List<int> ids) async {
     final prefs = await _prefs;
     await prefs.setStringList(_recentSongIdsKey, ids.map((e) => e.toString()).toList());
+  }
+
+  @override
+  Future<int> getThemeMode() async {
+    final prefs = await _prefs;
+    return prefs.getInt(_themeModeKey) ?? 0; // 0=dark (default)
+  }
+
+  @override
+  Future<void> setThemeMode(int value) async {
+    final prefs = await _prefs;
+    await prefs.setInt(_themeModeKey, value);
+  }
+
+  @override
+  Future<bool> getHighContrast() async {
+    final prefs = await _prefs;
+    return prefs.getBool(_highContrastKey) ?? false;
+  }
+
+  @override
+  Future<void> setHighContrast(bool value) async {
+    final prefs = await _prefs;
+    await prefs.setBool(_highContrastKey, value);
   }
 }

@@ -26,6 +26,7 @@ class SongTile extends ConsumerWidget {
     final isPlaying = playback.currentSong?.id == song.id;
     final favorites = ref.watch(favoritesProvider);
     final isFav = favorites.contains(song.id);
+    final colors = NenTheme.of(context);
 
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -54,7 +55,7 @@ class SongTile extends ConsumerWidget {
         style: TextStyle(
           color: isPlaying
               ? Theme.of(context).colorScheme.primary
-              : NenTheme.textPrimary,
+              : colors.textPrimary,
           fontWeight: isPlaying ? FontWeight.w600 : FontWeight.normal,
         ),
       ),
@@ -62,7 +63,7 @@ class SongTile extends ConsumerWidget {
         song.artist,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: const TextStyle(color: NenTheme.textSecondary, fontSize: 13),
+        style: TextStyle(color: colors.textSecondary, fontSize: 13),
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,
@@ -71,14 +72,14 @@ class SongTile extends ConsumerWidget {
             onTap: () => ref.read(favoritesProvider.notifier).toggle(song.id),
             child: Icon(
               isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-              color: isFav ? Colors.redAccent : NenTheme.textTertiary,
+              color: isFav ? Colors.redAccent : colors.textTertiary,
               size: 18,
             ),
           ),
           const SizedBox(width: 8),
           Text(
             _formatDuration(song.duration),
-            style: const TextStyle(color: NenTheme.textTertiary, fontSize: 12),
+            style: TextStyle(color: colors.textTertiary, fontSize: 12),
           ),
         ],
       ),
@@ -88,8 +89,9 @@ class SongTile extends ConsumerWidget {
   }
 
   Widget _defaultArt(BuildContext context) {
+    final colors = NenTheme.of(context);
     return Container(
-      color: NenTheme.surfaceElevated,
+      color: colors.surfaceElevated,
       child: Icon(
         Icons.music_note_rounded,
         color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
