@@ -90,7 +90,7 @@ class _NenAppState extends ConsumerState<NenApp> {
     ));
 
     return MaterialApp(
-      title: '念 nen',
+      title: 'nen',
       debugShowCheckedModeBanner: false,
       theme: NenTheme.buildLight(accentColor: settings.customAccentColor),
       darkTheme: NenTheme.buildDark(accentColor: settings.customAccentColor),

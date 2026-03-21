@@ -11,9 +11,11 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Notification permission (Android 13+ / API 33) for foreground service -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <application
-        android:label="念 nen"
+        android:label="nen"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

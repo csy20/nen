@@ -5,12 +5,40 @@ import 'package:on_audio_query/on_audio_query.dart';
 import '../../domain/entities/entities.dart';
 import '../../domain/repositories/music_repository.dart';
 
+/// Folders to exclude from song queries (call & voice recordings).
+const _excludedPathSegments = [
+  '/Call/',
+  '/CallRecordings/',
+  '/Call Recordings/',
+  '/Recordings/',
+  '/Voice Recorder/',
+  '/VoiceRecorder/',
+  '/Sounds/',
+  '/Ringtones/',
+  '/Notifications/',
+  '/Alarms/',
+];
+
+/// Minimum duration (in ms) to consider a file as music.
+const _minDurationMs = 30000; // 30 seconds
+
 /// Implementation of [MusicRepository] using on_audio_query.
 class MusicRepositoryImpl implements MusicRepository {
   final OnAudioQuery _audioQuery;
 
   MusicRepositoryImpl({OnAudioQuery? audioQuery})
       : _audioQuery = audioQuery ?? OnAudioQuery();
+
+  /// Returns true if [model] looks like actual music (not a recording/tone).
+  bool _isMusicFile(SongModel model) {
+    if ((model.duration ?? 0) < _minDurationMs) return false;
+
+    final path = model.data.replaceAll('\\', '/');
+    for (final segment in _excludedPathSegments) {
+      if (path.contains(segment)) return false;
+    }
+    return true;
+  }
 
   @override
   Future<List<Song>> getSongs() async {
@@ -19,7 +47,7 @@ class MusicRepositoryImpl implements MusicRepository {
       orderType: OrderType.ASC_OR_SMALLER,
       uriType: UriType.EXTERNAL,
     );
-    return models.map(_mapSong).toList();
+    return models.where(_isMusicFile).map(_mapSong).toList();
   }
 
   @override
@@ -48,7 +76,7 @@ class MusicRepositoryImpl implements MusicRepository {
       uriType: UriType.EXTERNAL,
     );
     return models
-        .where((s) => s.albumId == albumId)
+        .where((s) => s.albumId == albumId && _isMusicFile(s))
         .map(_mapSong)
         .toList();
   }
@@ -61,7 +89,7 @@ class MusicRepositoryImpl implements MusicRepository {
       uriType: UriType.EXTERNAL,
     );
     return models
-        .where((s) => s.artistId == artistId)
+        .where((s) => s.artistId == artistId && _isMusicFile(s))
         .map(_mapSong)
         .toList();
   }
@@ -94,7 +122,7 @@ class MusicRepositoryImpl implements MusicRepository {
       uriType: UriType.EXTERNAL,
     );
     final folders = <String>{};
-    for (final s in songs) {
+    for (final s in songs.where(_isMusicFile)) {
       final path = s.data;
       final lastSlash = path.lastIndexOf('/');
       if (lastSlash > 0) {
@@ -112,6 +140,7 @@ class MusicRepositoryImpl implements MusicRepository {
     );
     return songs
         .where((s) {
+          if (!_isMusicFile(s)) return false;
           final lastSlash = s.data.lastIndexOf('/');
           if (lastSlash <= 0) return false;
           return s.data.substring(0, lastSlash) == path;

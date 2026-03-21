@@ -204,7 +204,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _sectionHeader('About'),
 
           ListTile(
-            title: Text('念 Music Player',
+            title: Text('nen Music Player',
                 style: TextStyle(color: colors.textPrimary)),
             subtitle: Text(
               'Version 1.0.0\nOffline music with real-time visualizer',

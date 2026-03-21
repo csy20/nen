@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
 
 import '../providers/providers.dart';
 import '../theme/nen_theme.dart';
@@ -260,8 +261,15 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
     }).toList();
 
     final json = const JsonEncoder.withIndent('  ').convert(data);
-    final dir = Directory('/storage/emulated/0/Download');
-    if (!await dir.exists()) await dir.create(recursive: true);
+    final dir = await getExternalStorageDirectory();
+    if (dir == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not access storage')),
+        );
+      }
+      return;
+    }
     final file = File(p.join(dir.path, 'nen_playlists.json'));
     await file.writeAsString(json);
 
@@ -273,12 +281,21 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
   }
 
   Future<void> _importPlaylists(BuildContext context) async {
-    final file = File('/storage/emulated/0/Download/nen_playlists.json');
+    final dir = await getExternalStorageDirectory();
+    if (dir == null) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Could not access storage')),
+        );
+      }
+      return;
+    }
+    final file = File(p.join(dir.path, 'nen_playlists.json'));
     if (!await file.exists()) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('No nen_playlists.json found in Downloads')),
+              content: Text('No nen_playlists.json found in app storage')),
         );
       }
       return;

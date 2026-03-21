@@ -41,35 +41,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     return Scaffold(
       backgroundColor: colors.background,
       appBar: AppBar(
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.baseline,
-          textBaseline: TextBaseline.ideographic,
-          children: [
-            Text(
-              '念',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.w800,
-                color: colors.textPrimary,
-                shadows: [
-                  Shadow(
-                    color: NenTheme.defaultAccent.withValues(alpha: 0.5),
-                    blurRadius: 12,
-                  ),
-                ],
+        title: Text(
+          'nen',
+          style: TextStyle(
+            fontSize: 28,
+            fontWeight: FontWeight.w800,
+            color: colors.textPrimary,
+            shadows: [
+              Shadow(
+                color: NenTheme.defaultAccent.withValues(alpha: 0.5),
+                blurRadius: 12,
               ),
-            ),
-            const SizedBox(width: 6),
-            Text(
-              'ネン',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w400,
-                color: colors.textSecondary,
-              ),
-            ),
-          ],
+            ],
+          ),
         ),
         actions: [
           // Theme toggle

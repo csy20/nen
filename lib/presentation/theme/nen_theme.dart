@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 // ── Design Tokens ───────────────────────────────────────────────────
-// Japanese glassmorphic aesthetic with Ma (間) whitespace principles.
+// Japanese glassmorphic aesthetic with Ma whitespace principles.
 
-/// Spacing scale based on 4px grid with generous Ma (間) whitespace.
+/// Spacing scale based on 4px grid with generous Ma whitespace.
 class NenSpacing {
   NenSpacing._();
   static const double xs = 4;
@@ -214,7 +214,7 @@ class NenTheme {
       ),
       iconTheme: IconThemeData(color: textSecondaryColor),
       textTheme: TextTheme(
-        // Display — for 念 kanji branding
+        // Display — for branding
         displayLarge: TextStyle(
             fontFamily: _fontFamily,
             color: textPrimaryColor,

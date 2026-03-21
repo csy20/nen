@@ -87,9 +87,9 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
                       color: Theme.of(context).colorScheme.primary,
                     ),
                     const SizedBox(height: 32),
-                    // 念 kanji branding with glow
+                    // nen branding with glow
                     Text(
-                      '念',
+                      'nen',
                       style: TextStyle(
                         color: colors.textPrimary,
                         fontSize: 48,
@@ -104,7 +104,7 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
                       ),
                     ),
                     Text(
-                      'ネン',
+                      'music player',
                       style: TextStyle(
                         color: colors.textSecondary,
                         fontSize: 16,
@@ -114,7 +114,7 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
                     ),
                     const SizedBox(height: 24),
                     Text(
-                      '念 needs access to your music library to play songs.',
+                      'nen needs access to your music library to play songs.',
                       textAlign: TextAlign.start,
                       style: TextStyle(
                         color: colors.textSecondary,

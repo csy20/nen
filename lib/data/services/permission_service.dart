@@ -11,6 +11,10 @@ class PermissionService {
   /// iOS: Handled via Info.plist (NSAppleMusicUsageDescription)
   Future<bool> requestAudioPermission() async {
     if (Platform.isAndroid) {
+      // Request notification permission first (Android 13+ / API 33).
+      // Required for foreground service media playback notifications.
+      await Permission.notification.request();
+
       // On Android 13+, request READ_MEDIA_AUDIO.
       // On Android 12 and below, request READ_EXTERNAL_STORAGE.
       // permission_handler handles version detection internally for

@@ -128,8 +128,8 @@ Future<NenAudioHandler> initAudioHandler(AudioRepository audioRepo) async {
   final handler = await as_lib.AudioService.init(
     builder: () => NenAudioHandler(audioRepo),
     config: as_lib.AudioServiceConfig(
-      androidNotificationChannelId: 'com.nen.audio',
-      androidNotificationChannelName: 'Nen Music',
+      androidNotificationChannelId: 'dev.csy20.nen.audio',
+      androidNotificationChannelName: 'Nen Music Playback',
       androidNotificationOngoing: true,
       androidStopForegroundOnPause: true,
     ),
