@@ -37,7 +37,9 @@ class SettingsState {
     return SettingsState(
       reduceMotion: reduceMotion ?? this.reduceMotion,
       reduceFlash: reduceFlash ?? this.reduceFlash,
-      customAccentColor: clearAccentColor ? null : (customAccentColor ?? this.customAccentColor),
+      customAccentColor: clearAccentColor
+          ? null
+          : (customAccentColor ?? this.customAccentColor),
       crossfadeEnabled: crossfadeEnabled ?? this.crossfadeEnabled,
       crossfadeDuration: crossfadeDuration ?? this.crossfadeDuration,
       themeMode: themeMode ?? this.themeMode,
@@ -96,7 +98,9 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       await _ref.read(settingsRepositoryProvider).setAccentColor(0);
     } else {
       state = state.copyWith(customAccentColor: color);
-      await _ref.read(settingsRepositoryProvider).setAccentColor(color.toARGB32());
+      await _ref
+          .read(settingsRepositoryProvider)
+          .setAccentColor(color.toARGB32());
     }
   }
 
@@ -123,10 +127,11 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   }
 }
 
-final settingsProvider =
-    StateNotifierProvider<SettingsNotifier, SettingsState>((ref) {
-  return SettingsNotifier(ref);
-});
+final settingsProvider = StateNotifierProvider<SettingsNotifier, SettingsState>(
+  (ref) {
+    return SettingsNotifier(ref);
+  },
+);
 
 // ── Favorites Provider ─────────────────────────────────────────────
 
@@ -154,8 +159,9 @@ class FavoritesNotifier extends StateNotifier<Set<int>> {
   bool isFavorite(int songId) => state.contains(songId);
 }
 
-final favoritesProvider =
-    StateNotifierProvider<FavoritesNotifier, Set<int>>((ref) {
+final favoritesProvider = StateNotifierProvider<FavoritesNotifier, Set<int>>((
+  ref,
+) {
   return FavoritesNotifier(ref);
 });
 
@@ -185,8 +191,8 @@ class RecentlyPlayedNotifier extends StateNotifier<List<int>> {
 
 final recentlyPlayedProvider =
     StateNotifierProvider<RecentlyPlayedNotifier, List<int>>((ref) {
-  return RecentlyPlayedNotifier(ref);
-});
+      return RecentlyPlayedNotifier(ref);
+    });
 
 // ── Sleep Timer Provider ───────────────────────────────────────────
 
@@ -247,5 +253,5 @@ class SleepTimerNotifier extends StateNotifier<SleepTimerState> {
 
 final sleepTimerProvider =
     StateNotifierProvider<SleepTimerNotifier, SleepTimerState>((ref) {
-  return SleepTimerNotifier();
-});
+      return SleepTimerNotifier();
+    });

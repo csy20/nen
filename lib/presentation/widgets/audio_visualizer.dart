@@ -41,7 +41,9 @@ class _AudioVisualizerWidgetState extends ConsumerState<AudioVisualizerWidget>
 
   Future<void> _loadShader() async {
     try {
-      final program = await ui.FragmentProgram.fromAsset('shaders/visualizer.frag');
+      final program = await ui.FragmentProgram.fromAsset(
+        'shaders/visualizer.frag',
+      );
       setState(() {
         _shader = program.fragmentShader();
         _shaderLoaded = true;
@@ -149,26 +151,26 @@ class _VisualizerPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     // Set uniforms
-    shader.setFloat(0, size.width);   // uSize.x
-    shader.setFloat(1, size.height);  // uSize.y (packed as vec2 at location 0)
+    shader.setFloat(0, size.width); // uSize.x
+    shader.setFloat(1, size.height); // uSize.y (packed as vec2 at location 0)
 
     // Note: Flutter's FragmentShader.setFloat uses sequential float indices
     // We remap to match our uniform layout
-    shader.setFloat(2, elapsed);       // uTime
+    shader.setFloat(2, elapsed); // uTime
 
-    shader.setFloat(3, bands.subBass);    // uSubBass
-    shader.setFloat(4, bands.bass);       // uBass
-    shader.setFloat(5, bands.lowMid);     // uLowMid
-    shader.setFloat(6, bands.mid);        // uMid
-    shader.setFloat(7, bands.upperMid);   // uUpperMid
-    shader.setFloat(8, bands.presence);   // uPresence
+    shader.setFloat(3, bands.subBass); // uSubBass
+    shader.setFloat(4, bands.bass); // uBass
+    shader.setFloat(5, bands.lowMid); // uLowMid
+    shader.setFloat(6, bands.mid); // uMid
+    shader.setFloat(7, bands.upperMid); // uUpperMid
+    shader.setFloat(8, bands.presence); // uPresence
     shader.setFloat(9, bands.brilliance); // uBrilliance
 
     shader.setFloat(10, accentColor.r); // uAccentColor.r
     shader.setFloat(11, accentColor.g); // uAccentColor.g
     shader.setFloat(12, accentColor.b); // uAccentColor.b
 
-    shader.setFloat(13, reduceMotion);    // uReduceMotion
+    shader.setFloat(13, reduceMotion); // uReduceMotion
 
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.width, size.height),

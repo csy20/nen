@@ -112,7 +112,10 @@ class SettingsRepositoryImpl implements SettingsRepository {
   @override
   Future<void> setFavoriteIds(List<int> ids) async {
     final prefs = await _prefs;
-    await prefs.setStringList(_favoriteIdsKey, ids.map((e) => e.toString()).toList());
+    await prefs.setStringList(
+      _favoriteIdsKey,
+      ids.map((e) => e.toString()).toList(),
+    );
   }
 
   @override
@@ -125,7 +128,10 @@ class SettingsRepositoryImpl implements SettingsRepository {
   @override
   Future<void> setRecentSongIds(List<int> ids) async {
     final prefs = await _prefs;
-    await prefs.setStringList(_recentSongIdsKey, ids.map((e) => e.toString()).toList());
+    await prefs.setStringList(
+      _recentSongIdsKey,
+      ids.map((e) => e.toString()).toList(),
+    );
   }
 
   @override

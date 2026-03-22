@@ -25,9 +25,7 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
     await _audioRepo.initialize();
 
     _positionSub = _audioRepo.positionStream.listen((pos) {
-      playbackState.add(playbackState.value.copyWith(
-        updatePosition: pos,
-      ));
+      playbackState.add(playbackState.value.copyWith(updatePosition: pos));
     });
 
     _completionSub = _audioRepo.completionStream.listen((_) {
@@ -36,21 +34,27 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
   }
 
   /// Start playing a song and update media session metadata.
-  Future<void> playSong(Song song, {List<Song>? queue, int queueIndex = 0}) async {
+  Future<void> playSong(
+    Song song, {
+    List<Song>? queue,
+    int queueIndex = 0,
+  }) async {
     _playing = true;
 
     await _audioRepo.play(song);
 
     // Update media item for lock screen
-    mediaItem.add(as_lib.MediaItem(
-      id: song.filePath,
-      title: song.title,
-      artist: song.artist,
-      album: song.album,
-      duration: song.duration,
-    ));
+    mediaItem.add(
+      as_lib.MediaItem(
+        id: song.filePath,
+        title: song.title,
+        artist: song.artist,
+        album: song.album,
+        duration: song.duration,
+      ),
+    );
 
-    _broadcastState();
+    _broadcastState(position: Duration.zero);
   }
 
   @override
@@ -71,16 +75,14 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
   Future<void> stop() async {
     _playing = false;
     await _audioRepo.stop();
-    _broadcastState();
+    _broadcastState(position: Duration.zero);
     // Don't call super.stop() — keep service alive
   }
 
   @override
   Future<void> seek(Duration position) async {
     await _audioRepo.seek(position);
-    playbackState.add(playbackState.value.copyWith(
-      updatePosition: position,
-    ));
+    playbackState.add(playbackState.value.copyWith(updatePosition: position));
   }
 
   @override
@@ -95,22 +97,36 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
     await seek(Duration.zero);
   }
 
-  void _broadcastState() {
-    playbackState.add(as_lib.PlaybackState(
-      controls: [
-        as_lib.MediaControl.skipToPrevious,
-        _playing ? as_lib.MediaControl.pause : as_lib.MediaControl.play,
-        as_lib.MediaControl.skipToNext,
-      ],
-      systemActions: const {
-        as_lib.MediaAction.seek,
-        as_lib.MediaAction.seekForward,
-        as_lib.MediaAction.seekBackward,
-      },
-      androidCompactActionIndices: const [0, 1, 2],
-      processingState: as_lib.AudioProcessingState.ready,
-      playing: _playing,
-    ));
+  Future<void> setVolume(double volume) => _audioRepo.setVolume(volume);
+
+  @override
+  Future<void> setSpeed(double speed) => _audioRepo.setSpeed(speed);
+
+  Future<void> setCrossfadeEnabled(bool enabled) =>
+      _audioRepo.setCrossfadeEnabled(enabled);
+
+  Future<void> setCrossfadeDuration(Duration duration) =>
+      _audioRepo.setCrossfadeDuration(duration);
+
+  void _broadcastState({Duration? position}) {
+    playbackState.add(
+      as_lib.PlaybackState(
+        controls: [
+          as_lib.MediaControl.skipToPrevious,
+          _playing ? as_lib.MediaControl.pause : as_lib.MediaControl.play,
+          as_lib.MediaControl.skipToNext,
+        ],
+        systemActions: const {
+          as_lib.MediaAction.seek,
+          as_lib.MediaAction.seekForward,
+          as_lib.MediaAction.seekBackward,
+        },
+        androidCompactActionIndices: const [0, 1, 2],
+        processingState: as_lib.AudioProcessingState.ready,
+        playing: _playing,
+        updatePosition: position ?? playbackState.value.updatePosition,
+      ),
+    );
   }
 
   /// Expose for FFT access.

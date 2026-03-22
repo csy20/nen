@@ -52,10 +52,7 @@ class _NeuPlaybackButtonState extends ConsumerState<NeuPlaybackButton>
       duration: const Duration(milliseconds: 400),
     );
     _springScale = Tween<double>(begin: 1.0, end: 0.88).animate(
-      CurvedAnimation(
-        parent: _springController,
-        curve: const _SpringCurve(),
-      ),
+      CurvedAnimation(parent: _springController, curve: const _SpringCurve()),
     );
 
     _iconMorphController = AnimationController(
@@ -120,10 +117,9 @@ class _NeuPlaybackButtonState extends ConsumerState<NeuPlaybackButton>
               decoration: neumorphicDecoration(
                 isPressed: _isPressed,
                 baseColor: widget.isPrimary
-                    ? Theme.of(context)
-                        .colorScheme
-                        .primary
-                        .withValues(alpha: 0.15)
+                    ? Theme.of(
+                        context,
+                      ).colorScheme.primary.withValues(alpha: 0.15)
                     : colors.surface,
               ),
               child: Center(
@@ -160,7 +156,9 @@ class _SpringCurve extends Curve {
   double transformInternal(double t) {
     final simulation = SpringSimulation(
       const SpringDescription(mass: 1, stiffness: 300, damping: 14),
-      0, 1, 0,
+      0,
+      1,
+      0,
     );
     return simulation.x(t);
   }

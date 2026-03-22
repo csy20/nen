@@ -55,11 +55,16 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
     if (mounted) {
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          pageBuilder: (_, __, ___) => const LibraryScreen(),
-          transitionsBuilder: (_, a, __, child) => FadeTransition(
-            opacity: CurvedAnimation(parent: a, curve: Curves.easeOut),
-            child: child,
-          ),
+          pageBuilder: (context, animation, secondaryAnimation) =>
+              const LibraryScreen(),
+          transitionsBuilder: (context, animation, secondaryAnimation, child) =>
+              FadeTransition(
+                opacity: CurvedAnimation(
+                  parent: animation,
+                  curve: Curves.easeOut,
+                ),
+                child: child,
+              ),
           transitionDuration: const Duration(milliseconds: 500),
         ),
       );
@@ -97,7 +102,9 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
                         letterSpacing: 2,
                         shadows: [
                           Shadow(
-                            color: NenTheme.defaultAccent.withValues(alpha: 0.6),
+                            color: NenTheme.defaultAccent.withValues(
+                              alpha: 0.6,
+                            ),
                             blurRadius: 16,
                           ),
                         ],
@@ -127,12 +134,15 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
                       child: ElevatedButton(
                         onPressed: _requestPermission,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                              Theme.of(context).colorScheme.primary,
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primary,
                           foregroundColor: Colors.white,
                           padding: const EdgeInsets.symmetric(vertical: 16),
                           shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(NenRadius.button),
+                            borderRadius: BorderRadius.circular(
+                              NenRadius.button,
+                            ),
                           ),
                         ),
                         child: const Text(

@@ -29,44 +29,44 @@ class NenShadows {
   NenShadows._();
 
   static List<BoxShadow> get card => [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.12),
-          offset: const Offset(0, 4),
-          blurRadius: 24,
-        ),
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.08),
-          offset: const Offset(0, 1),
-          blurRadius: 4,
-        ),
-      ];
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.12),
+      offset: const Offset(0, 4),
+      blurRadius: 24,
+    ),
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.08),
+      offset: const Offset(0, 1),
+      blurRadius: 4,
+    ),
+  ];
 
   static List<BoxShadow> get elevated => [
-        BoxShadow(
-          color: const Color(0xFF1F2687).withValues(alpha: 0.25),
-          offset: const Offset(0, 8),
-          blurRadius: 32,
-        ),
-      ];
+    BoxShadow(
+      color: const Color(0xFF1F2687).withValues(alpha: 0.25),
+      offset: const Offset(0, 8),
+      blurRadius: 32,
+    ),
+  ];
 
   static List<BoxShadow> get inner => [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.06),
-          offset: const Offset(0, 2),
-          blurRadius: 4,
-        ),
-      ];
+    BoxShadow(
+      color: Colors.black.withValues(alpha: 0.06),
+      offset: const Offset(0, 2),
+      blurRadius: 4,
+    ),
+  ];
 }
 
 /// Mood color palette — Japanese-inspired names.
 class NenMoodColors {
   NenMoodColors._();
-  static const Color sakura = Color(0xFFFFB7C5);     // calm
-  static const Color maple = Color(0xFFC41E3A);      // energy
-  static const Color matcha = Color(0xFF88AB75);      // joy
-  static const Color rain = Color(0xFF7BA7BC);        // melancholy
-  static const Color wisteria = Color(0xFF8B7EC8);    // focus
-  static const Color yuzu = Color(0xFFF5C518);        // anger/intensity
+  static const Color sakura = Color(0xFFFFB7C5); // calm
+  static const Color maple = Color(0xFFC41E3A); // energy
+  static const Color matcha = Color(0xFF88AB75); // joy
+  static const Color rain = Color(0xFF7BA7BC); // melancholy
+  static const Color wisteria = Color(0xFF8B7EC8); // focus
+  static const Color yuzu = Color(0xFFF5C518); // anger/intensity
 }
 
 /// Nen app theme with dark-first Japanese glassmorphic aesthetic.
@@ -148,7 +148,8 @@ class NenTheme {
   }
 
   /// Legacy build method — returns dark theme for backward compatibility.
-  static ThemeData build({Color? accentColor}) => buildDark(accentColor: accentColor);
+  static ThemeData build({Color? accentColor}) =>
+      buildDark(accentColor: accentColor);
 
   static ThemeData _buildTheme({
     required Brightness brightness,
@@ -216,25 +217,44 @@ class NenTheme {
       textTheme: TextTheme(
         // Display — for branding
         displayLarge: TextStyle(
-            fontFamily: _fontFamily,
-            color: textPrimaryColor,
-            fontSize: 32,
-            fontWeight: FontWeight.w800,
-            height: 1.2),
+          fontFamily: _fontFamily,
+          color: textPrimaryColor,
+          fontSize: 32,
+          fontWeight: FontWeight.w800,
+          height: 1.2,
+        ),
         headlineLarge: TextStyle(
-            color: textPrimaryColor, fontSize: 28, fontWeight: FontWeight.bold),
+          color: textPrimaryColor,
+          fontSize: 28,
+          fontWeight: FontWeight.bold,
+        ),
         headlineMedium: TextStyle(
-            color: textPrimaryColor, fontSize: 22, fontWeight: FontWeight.w600),
+          color: textPrimaryColor,
+          fontSize: 22,
+          fontWeight: FontWeight.w600,
+        ),
         titleLarge: TextStyle(
-            color: textPrimaryColor, fontSize: 18, fontWeight: FontWeight.w600),
+          color: textPrimaryColor,
+          fontSize: 18,
+          fontWeight: FontWeight.w600,
+        ),
         titleMedium: TextStyle(
-            color: textPrimaryColor, fontSize: 16, fontWeight: FontWeight.w500),
+          color: textPrimaryColor,
+          fontSize: 16,
+          fontWeight: FontWeight.w500,
+        ),
         bodyLarge: TextStyle(
-            color: textPrimaryColor, fontSize: 16, height: 1.6),
+          color: textPrimaryColor,
+          fontSize: 16,
+          height: 1.6,
+        ),
         bodyMedium: TextStyle(color: textSecondaryColor, fontSize: 14),
         bodySmall: TextStyle(color: textTertiaryColor, fontSize: 12),
         labelLarge: TextStyle(
-            color: textPrimaryColor, fontSize: 14, fontWeight: FontWeight.w600),
+          color: textPrimaryColor,
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        ),
         labelSmall: TextStyle(color: textTertiaryColor, fontSize: 11),
       ),
       sliderTheme: SliderThemeData(
@@ -314,10 +334,10 @@ class NenColors {
 
   Color get background =>
       isDark ? NenTheme.trueBlack : NenTheme.backgroundPrimaryLight;
-  Color get backgroundSecondary =>
-      isDark ? NenTheme.backgroundSecondaryDark : NenTheme.backgroundSecondaryLight;
-  Color get surface =>
-      isDark ? NenTheme.surfaceDark : NenTheme.surfaceLight;
+  Color get backgroundSecondary => isDark
+      ? NenTheme.backgroundSecondaryDark
+      : NenTheme.backgroundSecondaryLight;
+  Color get surface => isDark ? NenTheme.surfaceDark : NenTheme.surfaceLight;
   Color get surfaceElevated =>
       isDark ? NenTheme.surfaceElevated : NenTheme.surfaceElevatedLight;
   Color get surfaceOverlay =>

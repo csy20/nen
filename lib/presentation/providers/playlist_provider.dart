@@ -13,9 +13,12 @@ class PlaylistNotifier extends StateNotifier<List<Playlist>> {
     state = await _ref.read(managePlaylistUseCaseProvider).getAll();
   }
 
-  Future<void> create(String name) async {
-    await _ref.read(managePlaylistUseCaseProvider).create(name);
+  Future<Playlist> create(String name) async {
+    final playlist = await _ref
+        .read(managePlaylistUseCaseProvider)
+        .create(name);
     await load();
+    return playlist;
   }
 
   Future<void> delete(String id) async {
@@ -43,5 +46,5 @@ class PlaylistNotifier extends StateNotifier<List<Playlist>> {
 
 final playlistsProvider =
     StateNotifierProvider<PlaylistNotifier, List<Playlist>>((ref) {
-  return PlaylistNotifier(ref);
-});
+      return PlaylistNotifier(ref);
+    });

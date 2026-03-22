@@ -35,10 +35,7 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar>
     _slideAnimation = Tween<Offset>(
       begin: const Offset(0, 1),
       end: Offset.zero,
-    ).animate(CurvedAnimation(
-      parent: _slideIn,
-      curve: Curves.easeOutCubic,
-    ));
+    ).animate(CurvedAnimation(parent: _slideIn, curve: Curves.easeOutCubic));
     _slideIn.forward();
 
     // Physics-based tap bounce
@@ -46,9 +43,10 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar>
       vsync: this,
       duration: const Duration(milliseconds: 150),
     );
-    _bounceScale = Tween<double>(begin: 1.0, end: 0.97).animate(
-      CurvedAnimation(parent: _tapBounce, curve: Curves.easeInOut),
-    );
+    _bounceScale = Tween<double>(
+      begin: 1.0,
+      end: 0.97,
+    ).animate(CurvedAnimation(parent: _tapBounce, curve: Curves.easeInOut));
   }
 
   @override
@@ -74,10 +72,8 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar>
       position: _slideAnimation,
       child: AnimatedBuilder(
         animation: _bounceScale,
-        builder: (context, child) => Transform.scale(
-          scale: _bounceScale.value,
-          child: child,
-        ),
+        builder: (context, child) =>
+            Transform.scale(scale: _bounceScale.value, child: child),
         child: GestureDetector(
           onTapDown: (_) => _tapBounce.forward(),
           onTapUp: (_) {
@@ -96,10 +92,7 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar>
                   decoration: BoxDecoration(
                     color: colors.glassSurface,
                     borderRadius: BorderRadius.circular(18),
-                    border: Border.all(
-                      color: colors.glassBorder,
-                      width: 0.5,
-                    ),
+                    border: Border.all(color: colors.glassBorder, width: 0.5),
                   ),
                   child: Column(
                     children: [
@@ -168,8 +161,9 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar>
                             // Play/pause with animated icon morph
                             _AnimatedPlayPauseButton(
                               isPlaying: playback.isPlaying,
-                              onPressed: () =>
-                                  ref.read(playbackProvider.notifier).togglePlayPause(),
+                              onPressed: () => ref
+                                  .read(playbackProvider.notifier)
+                                  .togglePlayPause(),
                             ),
                             // Next
                             IconButton(

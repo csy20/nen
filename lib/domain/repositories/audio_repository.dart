@@ -44,6 +44,12 @@ abstract class AudioRepository {
   /// Set playback speed (0.5–2.0).
   Future<void> setSpeed(double speed);
 
+  /// Enable or disable crossfade between tracks.
+  Future<void> setCrossfadeEnabled(bool enabled);
+
+  /// Set the crossfade duration.
+  Future<void> setCrossfadeDuration(Duration duration);
+
   /// Enable or disable the 8-band equalizer.
   Future<void> setEqualizerActive(bool active);
 

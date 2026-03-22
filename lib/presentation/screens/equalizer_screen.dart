@@ -9,8 +9,14 @@ class EqualizerScreen extends ConsumerWidget {
   const EqualizerScreen({super.key});
 
   static const _bandLabels = [
-    '60Hz', '170Hz', '310Hz', '600Hz',
-    '1kHz', '3kHz', '6kHz', '12kHz',
+    '60Hz',
+    '170Hz',
+    '310Hz',
+    '600Hz',
+    '1kHz',
+    '3kHz',
+    '6kHz',
+    '12kHz',
   ];
 
   @override
@@ -30,8 +36,7 @@ class EqualizerScreen extends ConsumerWidget {
           IconButton(
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Reset',
-            onPressed: () =>
-                ref.read(equalizerProvider.notifier).resetBands(),
+            onPressed: () => ref.read(equalizerProvider.notifier).resetBands(),
           ),
         ],
       ),
@@ -45,11 +50,47 @@ class EqualizerScreen extends ConsumerWidget {
               child: ListView(
                 scrollDirection: Axis.horizontal,
                 children: [
-                  _presetChip(ref, colors, 'Flat', [1,1,1,1,1,1,1,1]),
-                  _presetChip(ref, colors, 'Bass Boost', [2.5,2.0,1.5,1,1,1,1,1]),
-                  _presetChip(ref, colors, 'Treble Boost', [1,1,1,1,1.5,2.0,2.5,3.0]),
-                  _presetChip(ref, colors, 'V-Shape', [2.5,1.8,1,0.8,0.8,1,1.8,2.5]),
-                  _presetChip(ref, colors, 'Vocal', [0.8,1,1.5,2.0,2.0,1.5,1,0.8]),
+                  _presetChip(ref, colors, 'Flat', [1, 1, 1, 1, 1, 1, 1, 1]),
+                  _presetChip(ref, colors, 'Bass Boost', [
+                    2.5,
+                    2.0,
+                    1.5,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                  ]),
+                  _presetChip(ref, colors, 'Treble Boost', [
+                    1,
+                    1,
+                    1,
+                    1,
+                    1.5,
+                    2.0,
+                    2.5,
+                    3.0,
+                  ]),
+                  _presetChip(ref, colors, 'V-Shape', [
+                    2.5,
+                    1.8,
+                    1,
+                    0.8,
+                    0.8,
+                    1,
+                    1.8,
+                    2.5,
+                  ]),
+                  _presetChip(ref, colors, 'Vocal', [
+                    0.8,
+                    1,
+                    1.5,
+                    2.0,
+                    2.0,
+                    1.5,
+                    1,
+                    0.8,
+                  ]),
                 ],
               ),
             ),
@@ -64,8 +105,9 @@ class EqualizerScreen extends ConsumerWidget {
                       label: _bandLabels[i],
                       value: eq.bands[i],
                       enabled: eq.isActive,
-                      onChanged: (val) =>
-                          ref.read(equalizerProvider.notifier).setBand(i + 1, val),
+                      onChanged: (val) => ref
+                          .read(equalizerProvider.notifier)
+                          .setBand(i + 1, val),
                     ),
                   );
                 }),
@@ -77,7 +119,12 @@ class EqualizerScreen extends ConsumerWidget {
     );
   }
 
-  Widget _presetChip(WidgetRef ref, dynamic colors, String name, List<double> bands) {
+  Widget _presetChip(
+    WidgetRef ref,
+    dynamic colors,
+    String name,
+    List<double> bands,
+  ) {
     return Padding(
       padding: const EdgeInsets.only(right: 8),
       child: ActionChip(

@@ -1,14 +1,13 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../domain/entities/entities.dart';
 import '../providers/providers.dart';
 import '../theme/nen_theme.dart';
 
 /// Song list tile with album art, title, artist, duration, and favorite toggle.
 class SongTile extends ConsumerWidget {
-  final dynamic song;
+  final Song song;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
@@ -37,14 +36,18 @@ class SongTile extends ConsumerWidget {
           height: 48,
           child: artAsync.when(
             data: (art) {
-              if (art != null && art is Uint8List && art.isNotEmpty) {
-                return Image.memory(art, fit: BoxFit.cover,
-                    cacheWidth: 96, cacheHeight: 96);
+              if (art != null && art.isNotEmpty) {
+                return Image.memory(
+                  art,
+                  fit: BoxFit.cover,
+                  cacheWidth: 96,
+                  cacheHeight: 96,
+                );
               }
               return _defaultArt(context);
             },
             loading: () => _defaultArt(context),
-            error: (_, __) => _defaultArt(context),
+            error: (error, stackTrace) => _defaultArt(context),
           ),
         ),
       ),

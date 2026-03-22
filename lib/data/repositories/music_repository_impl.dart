@@ -25,9 +25,12 @@ const _minDurationMs = 30000; // 30 seconds
 /// Implementation of [MusicRepository] using on_audio_query.
 class MusicRepositoryImpl implements MusicRepository {
   final OnAudioQuery _audioQuery;
+  final Map<int, Uint8List?> _albumArtCache = <int, Uint8List?>{};
+  final Map<int, Future<Uint8List?>> _albumArtRequests =
+      <int, Future<Uint8List?>>{};
 
   MusicRepositoryImpl({OnAudioQuery? audioQuery})
-      : _audioQuery = audioQuery ?? OnAudioQuery();
+    : _audioQuery = audioQuery ?? OnAudioQuery();
 
   /// Returns true if [model] looks like actual music (not a recording/tone).
   bool _isMusicFile(SongModel model) {
@@ -96,12 +99,29 @@ class MusicRepositoryImpl implements MusicRepository {
 
   @override
   Future<Uint8List?> getAlbumArt(int songId) async {
-    return _audioQuery.queryArtwork(
-      songId,
-      ArtworkType.AUDIO,
-      size: 512,
-      quality: 80,
-    );
+    if (_albumArtCache.containsKey(songId)) {
+      return _albumArtCache[songId];
+    }
+
+    final inFlight = _albumArtRequests[songId];
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final request = _audioQuery
+        .queryArtwork(songId, ArtworkType.AUDIO, size: 512, quality: 80)
+        .then((art) {
+          _albumArtCache[songId] = art;
+          _albumArtRequests.remove(songId);
+          return art;
+        })
+        .catchError((error) {
+          _albumArtRequests.remove(songId);
+          throw error;
+        });
+
+    _albumArtRequests[songId] = request;
+    return request;
   }
 
   @override
@@ -109,18 +129,18 @@ class MusicRepositoryImpl implements MusicRepository {
     final all = await getSongs();
     final q = query.toLowerCase();
     return all
-        .where((s) =>
-            s.title.toLowerCase().contains(q) ||
-            s.artist.toLowerCase().contains(q) ||
-            s.album.toLowerCase().contains(q))
+        .where(
+          (s) =>
+              s.title.toLowerCase().contains(q) ||
+              s.artist.toLowerCase().contains(q) ||
+              s.album.toLowerCase().contains(q),
+        )
         .toList();
   }
 
   @override
   Future<List<String>> getFolders() async {
-    final songs = await _audioQuery.querySongs(
-      uriType: UriType.EXTERNAL,
-    );
+    final songs = await _audioQuery.querySongs(uriType: UriType.EXTERNAL);
     final folders = <String>{};
     for (final s in songs.where(_isMusicFile)) {
       final path = s.data;
@@ -135,9 +155,7 @@ class MusicRepositoryImpl implements MusicRepository {
 
   @override
   Future<List<Song>> getSongsByFolder(String path) async {
-    final songs = await _audioQuery.querySongs(
-      uriType: UriType.EXTERNAL,
-    );
+    final songs = await _audioQuery.querySongs(uriType: UriType.EXTERNAL);
     return songs
         .where((s) {
           if (!_isMusicFile(s)) return false;
@@ -152,32 +170,34 @@ class MusicRepositoryImpl implements MusicRepository {
   @override
   Future<void> rescanMedia() async {
     // Trigger a media store rescan
+    _albumArtCache.clear();
+    _albumArtRequests.clear();
     await _audioQuery.scanMedia('/');
   }
 
   Song _mapSong(SongModel m) => Song(
-        id: m.id,
-        title: m.title,
-        artist: m.artist ?? 'Unknown Artist',
-        album: m.album ?? 'Unknown Album',
-        albumId: m.albumId ?? 0,
-        duration: Duration(milliseconds: m.duration ?? 0),
-        filePath: m.data,
-        trackNumber: m.track ?? 0,
-        year: 0,
-      );
+    id: m.id,
+    title: m.title,
+    artist: m.artist ?? 'Unknown Artist',
+    album: m.album ?? 'Unknown Album',
+    albumId: m.albumId ?? 0,
+    duration: Duration(milliseconds: m.duration ?? 0),
+    filePath: m.data,
+    trackNumber: m.track ?? 0,
+    year: 0,
+  );
 
   Album _mapAlbum(AlbumModel m) => Album(
-        id: m.id,
-        name: m.album,
-        artist: m.artist ?? 'Unknown Artist',
-        songCount: m.numOfSongs,
-      );
+    id: m.id,
+    name: m.album,
+    artist: m.artist ?? 'Unknown Artist',
+    songCount: m.numOfSongs,
+  );
 
   Artist _mapArtist(ArtistModel m) => Artist(
-        id: m.id,
-        name: m.artist,
-        albumCount: m.numberOfAlbums ?? 0,
-        songCount: m.numberOfTracks ?? 0,
-      );
+    id: m.id,
+    name: m.artist,
+    albumCount: m.numberOfAlbums ?? 0,
+    songCount: m.numberOfTracks ?? 0,
+  );
 }

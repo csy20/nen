@@ -36,8 +36,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _sectionHeader('Accessibility'),
 
           SwitchListTile(
-            title: Text('Reduce Motion',
-                style: TextStyle(color: colors.textPrimary)),
+            title: Text(
+              'Reduce Motion',
+              style: TextStyle(color: colors.textPrimary),
+            ),
             subtitle: Text(
               'Reduces animations and visualizer motion effects',
               style: TextStyle(color: colors.textTertiary, fontSize: 12),
@@ -48,8 +50,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
 
           SwitchListTile(
-            title: Text('Reduce Flash',
-                style: TextStyle(color: colors.textPrimary)),
+            title: Text(
+              'Reduce Flash',
+              style: TextStyle(color: colors.textPrimary),
+            ),
             subtitle: Text(
               'Disables rapid brightness changes in the visualizer',
               style: TextStyle(color: colors.textTertiary, fontSize: 12),
@@ -60,8 +64,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
 
           SwitchListTile(
-            title: Text('High Contrast',
-                style: TextStyle(color: colors.textPrimary)),
+            title: Text(
+              'High Contrast',
+              style: TextStyle(color: colors.textPrimary),
+            ),
             subtitle: Text(
               'Increases borders and removes blur effects',
               style: TextStyle(color: colors.textTertiary, fontSize: 12),
@@ -77,8 +83,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _sectionHeader('Playback'),
 
           SwitchListTile(
-            title: Text('Crossfade',
-                style: TextStyle(color: colors.textPrimary)),
+            title: Text(
+              'Crossfade',
+              style: TextStyle(color: colors.textPrimary),
+            ),
             subtitle: Text(
               'Smooth ${settings.crossfadeDuration}s transition between tracks',
               style: TextStyle(color: colors.textTertiary, fontSize: 12),
@@ -93,8 +101,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: Row(
                 children: [
-                  Text('Duration',
-                      style: TextStyle(color: colors.textSecondary, fontSize: 13)),
+                  Text(
+                    'Duration',
+                    style: TextStyle(color: colors.textSecondary, fontSize: 13),
+                  ),
                   Expanded(
                     child: Slider(
                       value: settings.crossfadeDuration.toDouble(),
@@ -107,9 +117,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           .setCrossfadeDuration(v.toInt()),
                     ),
                   ),
-                  Text('${settings.crossfadeDuration}s',
-                      style: TextStyle(
-                          color: colors.textTertiary, fontSize: 12)),
+                  Text(
+                    '${settings.crossfadeDuration}s',
+                    style: TextStyle(color: colors.textTertiary, fontSize: 12),
+                  ),
                 ],
               ),
             ),
@@ -121,14 +132,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
           // Theme mode selector
           ListTile(
-            title: Text('Theme',
-                style: TextStyle(color: colors.textPrimary)),
+            title: Text('Theme', style: TextStyle(color: colors.textPrimary)),
             subtitle: Text(
               settings.themeMode == NenThemeMode.dark
                   ? 'Dark'
                   : settings.themeMode == NenThemeMode.light
-                      ? 'Light'
-                      : 'System',
+                  ? 'Light'
+                  : 'System',
               style: TextStyle(color: colors.textTertiary, fontSize: 12),
             ),
             trailing: SegmentedButton<NenThemeMode>(
@@ -160,8 +170,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
 
           ListTile(
-            title: Text('Accent Color',
-                style: TextStyle(color: colors.textPrimary)),
+            title: Text(
+              'Accent Color',
+              style: TextStyle(color: colors.textPrimary),
+            ),
             subtitle: Text(
               settings.customAccentColor != null
                   ? 'Custom color set'
@@ -175,7 +187,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 color: settings.customAccentColor ?? NenTheme.defaultAccent,
                 shape: BoxShape.circle,
                 border: Border.all(
-                    color: Colors.white.withValues(alpha: 0.2), width: 1),
+                  color: Colors.white.withValues(alpha: 0.2),
+                  width: 1,
+                ),
               ),
             ),
             onTap: () => _showColorPicker(context),
@@ -187,14 +201,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _sectionHeader('Library'),
 
           ListTile(
-            title: Text('Rescan Media',
-                style: TextStyle(color: colors.textPrimary)),
+            title: Text(
+              'Rescan Media',
+              style: TextStyle(color: colors.textPrimary),
+            ),
             subtitle: Text(
               'Scan device for new music files',
               style: TextStyle(color: colors.textTertiary, fontSize: 12),
             ),
-            leading: Icon(Icons.refresh_rounded,
-                color: colors.textSecondary),
+            leading: Icon(Icons.refresh_rounded, color: colors.textSecondary),
             onTap: () => _rescanMedia(context),
           ),
 
@@ -204,8 +219,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _sectionHeader('About'),
 
           ListTile(
-            title: Text('nen Music Player',
-                style: TextStyle(color: colors.textPrimary)),
+            title: Text(
+              'nen Music Player',
+              style: TextStyle(color: colors.textPrimary),
+            ),
             subtitle: Text(
               'Version 1.0.0\nOffline music with real-time visualizer',
               style: TextStyle(color: colors.textTertiary, fontSize: 12),
@@ -213,8 +230,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
 
           ListTile(
-            title: Text('Audio Engine',
-                style: TextStyle(color: colors.textPrimary)),
+            title: Text(
+              'Audio Engine',
+              style: TextStyle(color: colors.textPrimary),
+            ),
             subtitle: Text(
               'Powered by flutter_soloud (C++ SoLoud)',
               style: TextStyle(color: colors.textTertiary, fontSize: 12),
@@ -261,7 +280,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       context: context,
       backgroundColor: colors.surfaceElevated,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(NenRadius.modal)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(NenRadius.modal),
+        ),
       ),
       builder: (ctx) => Padding(
         padding: const EdgeInsets.all(24),
@@ -269,18 +290,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Choose Accent Color',
-                style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600)),
+            Text(
+              'Choose Accent Color',
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
             const SizedBox(height: 16),
             Wrap(
               spacing: 12,
               runSpacing: 12,
               children: colorOptions.map((color) {
-                final isSelected = color == ref.read(settingsProvider).customAccentColor ||
-                    (color == null && ref.read(settingsProvider).customAccentColor == null);
+                final isSelected =
+                    color == ref.read(settingsProvider).customAccentColor ||
+                    (color == null &&
+                        ref.read(settingsProvider).customAccentColor == null);
                 return GestureDetector(
                   onTap: () {
                     ref.read(settingsProvider.notifier).setAccentColor(color);
@@ -298,8 +324,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       ),
                     ),
                     child: color == null
-                        ? const Icon(Icons.auto_awesome_rounded,
-                            color: Colors.white, size: 20)
+                        ? const Icon(
+                            Icons.auto_awesome_rounded,
+                            color: Colors.white,
+                            size: 20,
+                          )
                         : null,
                   ),
                 );
@@ -313,24 +342,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _rescanMedia(BuildContext context) async {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Scanning for new media...')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Scanning for new media...')));
     try {
-      await ref.read(musicRepositoryProvider).rescanMedia();
-      ref.invalidate(songsProvider);
-      ref.invalidate(albumsProvider);
-      ref.invalidate(artistsProvider);
+      await ref.read(libraryRefreshProvider.notifier).refresh();
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Media scan complete')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Media scan complete')));
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Scan failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Scan failed: $e')));
       }
     }
   }

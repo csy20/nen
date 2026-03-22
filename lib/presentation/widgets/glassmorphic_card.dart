@@ -39,8 +39,7 @@ class _GlassmorphicCardState extends State<GlassmorphicCard> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final reduceMotion =
-        MediaQuery.of(context).disableAnimations;
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
 
     final surfaceColor = isDark
         ? Colors.white.withValues(alpha: widget.opacity)
@@ -81,17 +80,16 @@ class _GlassmorphicCardState extends State<GlassmorphicCard> {
                             begin: Alignment.topLeft,
                             end: Alignment.bottomRight,
                             colors: [
-                              Colors.white.withValues(alpha: isDark ? 0.1 : 0.15),
+                              Colors.white.withValues(
+                                alpha: isDark ? 0.1 : 0.15,
+                              ),
                               Colors.transparent,
                             ],
                           )
                         : null,
                     color: _isHovered ? null : surfaceColor,
                     borderRadius: BorderRadius.circular(widget.borderRadius),
-                    border: Border.all(
-                      color: borderColor,
-                      width: 1,
-                    ),
+                    border: Border.all(color: borderColor, width: 1),
                     boxShadow: [
                       ...NenShadows.card,
                       if (widget.glowColor != null)

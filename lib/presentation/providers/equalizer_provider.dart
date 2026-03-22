@@ -7,7 +7,10 @@ class EqualizerState {
   final bool isActive;
   final List<double> bands; // 8 bands
 
-  const EqualizerState({this.isActive = false, this.bands = const [1,1,1,1,1,1,1,1]});
+  const EqualizerState({
+    this.isActive = false,
+    this.bands = const [1, 1, 1, 1, 1, 1, 1, 1],
+  });
 
   EqualizerState copyWith({bool? isActive, List<double>? bands}) {
     return EqualizerState(
@@ -47,5 +50,5 @@ class EqualizerNotifier extends StateNotifier<EqualizerState> {
 
 final equalizerProvider =
     StateNotifierProvider<EqualizerNotifier, EqualizerState>((ref) {
-  return EqualizerNotifier(ref);
-});
+      return EqualizerNotifier(ref);
+    });

@@ -6,9 +6,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import '../../domain/entities/entities.dart';
 import '../providers/providers.dart';
 import '../theme/nen_theme.dart';
 import '../theme/page_transitions.dart';
+import '../widgets/song_actions_sheet.dart';
 import '../widgets/song_tile.dart';
 
 /// Playlist management screen.
@@ -44,16 +46,20 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                   onTap: () => _showCreateDialog(context),
                   borderRadius: BorderRadius.circular(12),
                   child: Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 14,
+                    ),
                     decoration: glassmorphicDecoration(
                       borderRadius: 12,
                       opacity: 0.06,
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.add_rounded,
-                            color: Theme.of(context).colorScheme.primary),
+                        Icon(
+                          Icons.add_rounded,
+                          color: Theme.of(context).colorScheme.primary,
+                        ),
                         const SizedBox(width: 12),
                         Text(
                           'Create Playlist',
@@ -69,14 +75,18 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
               ),
               const SizedBox(width: 8),
               IconButton(
-                icon: Icon(Icons.file_upload_outlined,
-                    color: colors.textSecondary),
+                icon: Icon(
+                  Icons.file_upload_outlined,
+                  color: colors.textSecondary,
+                ),
                 onPressed: () => _exportPlaylists(context),
                 tooltip: 'Export Playlists',
               ),
               IconButton(
-                icon: Icon(Icons.file_download_outlined,
-                    color: colors.textSecondary),
+                icon: Icon(
+                  Icons.file_download_outlined,
+                  color: colors.textSecondary,
+                ),
                 onPressed: () => _importPlaylists(context),
                 tooltip: 'Import Playlists',
               ),
@@ -108,10 +118,9 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                         ),
                         child: Icon(
                           Icons.playlist_play_rounded,
-                          color: Theme.of(context)
-                              .colorScheme
-                              .primary
-                              .withValues(alpha: 0.6),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.6),
                         ),
                       ),
                       title: Text(
@@ -126,8 +135,10 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                         ),
                       ),
                       trailing: PopupMenuButton(
-                        icon: Icon(Icons.more_vert_rounded,
-                            color: colors.textTertiary),
+                        icon: Icon(
+                          Icons.more_vert_rounded,
+                          color: colors.textTertiary,
+                        ),
                         color: colors.surfaceElevated,
                         itemBuilder: (_) => [
                           const PopupMenuItem(
@@ -136,14 +147,19 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                           ),
                           const PopupMenuItem(
                             value: 'delete',
-                            child: Text('Delete',
-                                style: TextStyle(color: Colors.redAccent)),
+                            child: Text(
+                              'Delete',
+                              style: TextStyle(color: Colors.redAccent),
+                            ),
                           ),
                         ],
                         onSelected: (val) {
                           if (val == 'rename') {
-                            _showRenameDialog(context, playlist.id,
-                                playlist.name);
+                            _showRenameDialog(
+                              context,
+                              playlist.id,
+                              playlist.name,
+                            );
                           } else if (val == 'delete') {
                             ref
                                 .read(playlistsProvider.notifier)
@@ -230,35 +246,43 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
     );
   }
 
-  void _openPlaylistDetail(BuildContext context, dynamic playlist) {
-    Navigator.of(context).push(NenSlideRoute(
-      builder: (_) => _PlaylistDetailScreen(playlist: playlist),
-    ));
+  void _openPlaylistDetail(BuildContext context, Playlist playlist) {
+    Navigator.of(context).push(
+      NenSlideRoute(builder: (_) => _PlaylistDetailScreen(playlist: playlist)),
+    );
   }
 
   Future<void> _exportPlaylists(BuildContext context) async {
     final playlists = ref.read(playlistsProvider);
     if (playlists.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No playlists to export')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('No playlists to export')));
       return;
     }
 
-    final data = playlists.map((p) => {
-      'name': p.name,
-      'songs': p.songs.map((s) => {
-        'id': s.id,
-        'title': s.title,
-        'artist': s.artist,
-        'album': s.album,
-        'albumId': s.albumId,
-        'duration': s.duration.inMilliseconds,
-        'filePath': s.filePath,
-        'trackNumber': s.trackNumber,
-        'year': s.year,
-      }).toList(),
-    }).toList();
+    final data = playlists
+        .map(
+          (p) => {
+            'name': p.name,
+            'songs': p.songs
+                .map(
+                  (s) => {
+                    'id': s.id,
+                    'title': s.title,
+                    'artist': s.artist,
+                    'album': s.album,
+                    'albumId': s.albumId,
+                    'duration': s.duration.inMilliseconds,
+                    'filePath': s.filePath,
+                    'trackNumber': s.trackNumber,
+                    'year': s.year,
+                  },
+                )
+                .toList(),
+          },
+        )
+        .toList();
 
     final json = const JsonEncoder.withIndent('  ').convert(data);
     final dir = await getExternalStorageDirectory();
@@ -274,9 +298,9 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
     await file.writeAsString(json);
 
     if (context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Exported to ${file.path}')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Exported to ${file.path}')));
     }
   }
 
@@ -295,7 +319,8 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-              content: Text('No nen_playlists.json found in app storage')),
+            content: Text('No nen_playlists.json found in app storage'),
+          ),
         );
       }
       return;
@@ -305,29 +330,51 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
       final json = await file.readAsString();
       final data = jsonDecode(json) as List;
       int count = 0;
-      for (final p in data) {
-        final name = p['name'] as String;
-        await ref.read(playlistsProvider.notifier).create(name);
+      for (final playlistData in data) {
+        final map = playlistData as Map<String, dynamic>;
+        final name = map['name'] as String;
+        final createdPlaylist = await ref
+            .read(playlistsProvider.notifier)
+            .create(name);
+        final songs = (map['songs'] as List<dynamic>).map((songData) {
+          final song = songData as Map<String, dynamic>;
+          return Song(
+            id: song['id'] as int,
+            title: song['title'] as String,
+            artist: song['artist'] as String,
+            album: song['album'] as String,
+            albumId: song['albumId'] as int,
+            duration: Duration(milliseconds: song['duration'] as int),
+            filePath: song['filePath'] as String,
+            trackNumber: song['trackNumber'] as int? ?? 0,
+            year: song['year'] as int? ?? 0,
+          );
+        });
+        for (final song in songs) {
+          await ref
+              .read(playlistsProvider.notifier)
+              .addSong(createdPlaylist.id, song);
+        }
         count++;
       }
       await ref.read(playlistsProvider.notifier).load();
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Imported $count playlists')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Imported $count playlists')));
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Import failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Import failed: $e')));
       }
     }
   }
 }
 
 class _PlaylistDetailScreen extends ConsumerWidget {
-  final dynamic playlist;
+  final Playlist playlist;
 
   const _PlaylistDetailScreen({required this.playlist});
 
@@ -368,8 +415,10 @@ class _PlaylistDetailScreen extends ConsumerWidget {
                     alignment: Alignment.centerRight,
                     padding: const EdgeInsets.only(right: 20),
                     color: Colors.redAccent.withValues(alpha: 0.2),
-                    child: const Icon(Icons.delete_rounded,
-                        color: Colors.redAccent),
+                    child: const Icon(
+                      Icons.delete_rounded,
+                      color: Colors.redAccent,
+                    ),
                   ),
                   onDismissed: (_) {
                     ref
@@ -380,8 +429,11 @@ class _PlaylistDetailScreen extends ConsumerWidget {
                     song: song,
                     onTap: () => ref
                         .read(playbackProvider.notifier)
-                        .playQueue(List.from(playlist.songs),
-                            startIndex: index),
+                        .playQueue(
+                          List.from(playlist.songs),
+                          startIndex: index,
+                        ),
+                    onLongPress: () => showSongActionsSheet(context, ref, song),
                   ),
                 );
               },
