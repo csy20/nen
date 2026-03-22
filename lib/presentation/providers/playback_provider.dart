@@ -9,6 +9,33 @@ import '../../data/services/nen_audio_handler.dart';
 import 'di_providers.dart';
 import 'settings_provider.dart';
 
+NenRepeatMode _toNenRepeatMode(
+  audio_svc.AudioServiceRepeatMode repeatMode,
+) {
+  switch (repeatMode) {
+    case audio_svc.AudioServiceRepeatMode.none:
+      return NenRepeatMode.off;
+    case audio_svc.AudioServiceRepeatMode.one:
+      return NenRepeatMode.one;
+    case audio_svc.AudioServiceRepeatMode.all:
+    case audio_svc.AudioServiceRepeatMode.group:
+      return NenRepeatMode.all;
+  }
+}
+
+audio_svc.AudioServiceRepeatMode _toAudioServiceRepeatMode(
+  NenRepeatMode repeatMode,
+) {
+  switch (repeatMode) {
+    case NenRepeatMode.off:
+      return audio_svc.AudioServiceRepeatMode.none;
+    case NenRepeatMode.one:
+      return audio_svc.AudioServiceRepeatMode.one;
+    case NenRepeatMode.all:
+      return audio_svc.AudioServiceRepeatMode.all;
+  }
+}
+
 /// Manages playback state: play, pause, seek, queue, shuffle, repeat.
 /// Now delegates to NenAudioHandler for background/lock-screen integration.
 class PlaybackNotifier extends StateNotifier<PlaybackState> {
@@ -16,6 +43,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
   final Ref _ref;
   final Random _random = Random();
   StreamSubscription<audio_svc.PlaybackState>? _pbStateSub;
+  StreamSubscription<audio_svc.AudioServiceRepeatMode>? _repeatModeSub;
   int? _crossfadeTriggeredSongId;
 
   PlaybackNotifier(this._handler, this._ref) : super(const PlaybackState()) {
@@ -27,6 +55,10 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
         isPlaying: ps.playing,
       );
       _maybeStartCrossfade(ps.updatePosition);
+    });
+
+    _repeatModeSub = _handler.repeatModeStream.listen((repeatMode) {
+      state = state.copyWith(repeatMode: _toNenRepeatMode(repeatMode));
     });
 
     Future.microtask(_loadPersistedPlaybackSettings);
@@ -199,10 +231,10 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
     );
   }
 
-  void cycleRepeat() {
+  Future<void> cycleRepeat() async {
     final modes = NenRepeatMode.values;
     final nextIdx = (state.repeatMode.index + 1) % modes.length;
-    state = state.copyWith(repeatMode: modes[nextIdx]);
+    await _handler.setRepeatMode(_toAudioServiceRepeatMode(modes[nextIdx]));
   }
 
   Future<void> setVolume(double volume) async {
@@ -397,6 +429,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
   @override
   void dispose() {
     _pbStateSub?.cancel();
+    _repeatModeSub?.cancel();
     super.dispose();
   }
 }

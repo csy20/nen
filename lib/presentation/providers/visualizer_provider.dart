@@ -4,6 +4,9 @@ import '../../data/services/fft_processor.dart';
 import '../../domain/entities/entities.dart';
 import 'di_providers.dart';
 
+/// Toggle between normal (album art) and simulated visualizer bar mode.
+final isVisualizerModeProvider = StateProvider<bool>((ref) => false);
+
 /// Provides real-time frequency band data for the visualizer.
 /// Polled by the shader widget on each frame.
 final frequencyBandsProvider = Provider<FrequencyBands>((ref) {

@@ -20,6 +20,9 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
 
   NenAudioHandler(this._audioRepo);
 
+  Stream<as_lib.AudioServiceRepeatMode> get repeatModeStream =>
+      playbackState.map((state) => state.repeatMode).distinct();
+
   /// Initialize and wire up the audio engine's streams.
   Future<void> init() async {
     await _audioRepo.initialize();
@@ -54,7 +57,7 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
       ),
     );
 
-    _broadcastState(position: Duration.zero);
+    _broadcastState(position: Duration.zero, queueIndex: queueIndex);
   }
 
   @override
@@ -86,6 +89,11 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
   }
 
   @override
+  Future<void> setRepeatMode(as_lib.AudioServiceRepeatMode repeatMode) async {
+    playbackState.add(playbackState.value.copyWith(repeatMode: repeatMode));
+  }
+
+  @override
   Future<void> skipToNext() async {
     // Delegate to PlaybackNotifier via callback
     onCompletion?.call();
@@ -100,7 +108,10 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
   Future<void> setVolume(double volume) => _audioRepo.setVolume(volume);
 
   @override
-  Future<void> setSpeed(double speed) => _audioRepo.setSpeed(speed);
+  Future<void> setSpeed(double speed) async {
+    await _audioRepo.setSpeed(speed);
+    playbackState.add(playbackState.value.copyWith(speed: speed));
+  }
 
   Future<void> setCrossfadeEnabled(bool enabled) =>
       _audioRepo.setCrossfadeEnabled(enabled);
@@ -108,9 +119,10 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
   Future<void> setCrossfadeDuration(Duration duration) =>
       _audioRepo.setCrossfadeDuration(duration);
 
-  void _broadcastState({Duration? position}) {
+  void _broadcastState({Duration? position, int? queueIndex}) {
+    final currentState = playbackState.value;
     playbackState.add(
-      as_lib.PlaybackState(
+      currentState.copyWith(
         controls: [
           as_lib.MediaControl.skipToPrevious,
           _playing ? as_lib.MediaControl.pause : as_lib.MediaControl.play,
@@ -120,11 +132,13 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
           as_lib.MediaAction.seek,
           as_lib.MediaAction.seekForward,
           as_lib.MediaAction.seekBackward,
+          as_lib.MediaAction.setRepeatMode,
         },
         androidCompactActionIndices: const [0, 1, 2],
         processingState: as_lib.AudioProcessingState.ready,
         playing: _playing,
-        updatePosition: position ?? playbackState.value.updatePosition,
+        updatePosition: position ?? currentState.position,
+        queueIndex: queueIndex ?? currentState.queueIndex,
       ),
     );
   }

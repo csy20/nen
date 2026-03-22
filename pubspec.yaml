@@ -47,6 +47,12 @@ dependencies:
   # Collection utilities
   collection: ^1.19.1
 
+  # Marquee scrolling text widget
+  marquee: ^2.2.3
+
+  # Audio waveform recorder/player (FFT bar upgrade path)
+  audio_waveforms: ^1.0.5
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
