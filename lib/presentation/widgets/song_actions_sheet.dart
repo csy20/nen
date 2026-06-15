@@ -171,32 +171,36 @@ Future<void> showSongActionsSheet(
 
 Future<String?> _showCreatePlaylistDialog(BuildContext context) async {
   final controller = TextEditingController();
-  return showDialog<String>(
-    context: context,
-    builder: (dialogContext) {
-      final colors = NenTheme.of(dialogContext);
-      return AlertDialog(
-        backgroundColor: colors.surfaceElevated,
-        title: const Text('New Playlist'),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          decoration: const InputDecoration(hintText: 'Playlist name'),
-          style: TextStyle(color: colors.textPrimary),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            child: const Text('Cancel'),
+  try {
+    return await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        final colors = NenTheme.of(dialogContext);
+        return AlertDialog(
+          backgroundColor: colors.surfaceElevated,
+          title: const Text('New Playlist'),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            decoration: const InputDecoration(hintText: 'Playlist name'),
+            style: TextStyle(color: colors.textPrimary),
           ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(dialogContext, controller.text.trim());
-            },
-            child: const Text('Create'),
-          ),
-        ],
-      );
-    },
-  );
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancel'),
+            ),
+            TextButton(
+              onPressed: () {
+                Navigator.pop(dialogContext, controller.text.trim());
+              },
+              child: const Text('Create'),
+            ),
+          ],
+        );
+      },
+    );
+  } finally {
+    controller.dispose();
+  }
 }

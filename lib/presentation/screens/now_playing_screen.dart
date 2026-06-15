@@ -4,11 +4,14 @@ import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/services/fft_processor.dart';
 import '../../domain/entities/entities.dart';
-import '../providers/providers.dart';
+import '../providers/di_providers.dart';
+import '../providers/library_providers.dart';
+import '../providers/playback_provider.dart';
+import '../providers/settings_provider.dart';
 import '../theme/nen_theme.dart';
 import '../theme/page_transitions.dart';
-import '../widgets/audio_visualizer.dart';
 import '../widgets/neu_playback_button.dart';
 import '../widgets/overflow_marquee_text.dart';
 import '../widgets/song_actions_sheet.dart';
@@ -34,7 +37,6 @@ class NowPlayingScreen extends ConsumerWidget {
     final favorites = ref.watch(favoritesProvider);
     final sleepTimer = ref.watch(sleepTimerProvider);
     final colors = NenTheme.of(context);
-    final isVisualizerMode = ref.watch(isVisualizerModeProvider);
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -46,92 +48,42 @@ class NowPlayingScreen extends ConsumerWidget {
           }
         },
         child: Stack(
+          fit: StackFit.expand,
           children: [
-            // 1. Animated palette gradient background (transitions on song change)
-            Positioned.fill(
-              child: _AnimatedAccentBuilder(
-                songId: song?.id,
-                builder: (accentColor) => DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        accentColor.withValues(alpha: 0.55),
-                        accentColor.withValues(alpha: 0.2),
-                        colors.background,
-                      ],
-                      stops: const [0.0, 0.45, 1.0],
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            // 2. Full-screen FFT shader visualizer (on top of palette gradient)
-            Positioned.fill(
-              child: _AnimatedAccentBuilder(
-                songId: song?.id,
-                builder: (accentColor) =>
-                    AudioVisualizerWidget(accentColor: accentColor),
-              ),
-            ),
-            // 3. Dark overlay for readability
-            Positioned.fill(
-              child: ColoredBox(color: Colors.black.withValues(alpha: 0.45)),
-            ),
-            // 4. Bottom gradient fade to background color
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      colors.background.withValues(alpha: 0.4),
-                      colors.background.withValues(alpha: 0.85),
-                      colors.background,
-                    ],
-                    stops: const [0.0, 0.45, 0.7, 1.0],
-                  ),
-                ),
-              ),
-            ),
-            // 5. UI content — LayoutBuilder distributes space without fragile Spacer math
+            // UI content
             SafeArea(
               child: LayoutBuilder(
                 builder: (context, constraints) {
-                  final artSize =
-                      (constraints.maxWidth * 0.58).clamp(0.0, 280.0);
+                  final artSize = (constraints.maxWidth * 0.58).clamp(
+                    0.0,
+                    280.0,
+                  );
                   return Column(
                     children: [
-                      _buildTopBar(
+                      _buildTopBar(context, ref, sleepTimer),
+                      // Add visualizer exactly as in the mockup
+                      SizedBox(
+                        height: 50,
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 24),
+                          child: _VisualizerRowWidget(),
+                        ),
+                      ),
+                      const Spacer(),
+                      _buildAlbumArtSection(
                         context,
                         ref,
                         song,
-                        favorites,
-                        sleepTimer,
-                        isVisualizerMode: isVisualizerMode,
+                        artSize,
+                        playback.isPlaying,
                       ),
-                      Expanded(
-                        flex: 5,
-                        child: Center(
-                          child: _buildAlbumArtSection(
-                            context,
-                            ref,
-                            song,
-                            artSize,
-                            playback.isPlaying,
-                            isVisualizerMode,
-                          ),
-                        ),
-                      ),
+                      const SizedBox(height: 32),
                       _buildSongInfo(context, song),
-                      const SizedBox(height: 16),
+                      const Spacer(),
                       _buildControlPanel(context, ref, playback),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 16),
                       _buildBottomActionStrip(context, ref, song, favorites),
-                      const SizedBox(height: 12),
+                      const SizedBox(height: 16),
                     ],
                   );
                 },
@@ -148,169 +100,74 @@ class NowPlayingScreen extends ConsumerWidget {
   Widget _buildTopBar(
     BuildContext context,
     WidgetRef ref,
-    Song? song,
-    Set<int> favorites,
-    SleepTimerState sleepTimer, {
-    bool isVisualizerMode = false,
-  }) {
+    SleepTimerState sleepTimer,
+  ) {
     final colors = NenTheme.of(context);
-    final isFavorite = song != null && favorites.contains(song.id);
 
-    return RepaintBoundary(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-            child: Container(
-              height: 56,
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.keyboard_arrow_down_rounded, size: 28),
+            color: colors.textPrimary,
+            onPressed: () => Navigator.pop(context),
+            tooltip: 'Close',
+          ),
+          if (sleepTimer.isActive)
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: colors.glassSurface,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(color: colors.glassBorder, width: 0.5),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.16),
+                borderRadius: BorderRadius.circular(999),
               ),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  Positioned.fill(
-                    child: Center(
-                      child: Text(
-                        'NOW PLAYING',
-                        style: TextStyle(
-                          color: colors.textSecondary,
-                          fontSize: 11,
-                          fontWeight: FontWeight.w600,
-                          letterSpacing: 1.5,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: const Icon(
-                          Icons.keyboard_arrow_down_rounded,
-                          size: 32,
-                        ),
-                        color: colors.textPrimary,
-                        onPressed: () => Navigator.pop(context),
-                        tooltip: 'Close',
-                      ),
-                      const Spacer(),
-                      if (sleepTimer.isActive)
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 10,
-                            vertical: 6,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context)
-                                .colorScheme
-                                .primary
-                                .withValues(alpha: 0.16),
-                            borderRadius: BorderRadius.circular(999),
-                          ),
-                          child: Text(
-                            _formatDuration(
-                              sleepTimer.remaining ?? Duration.zero,
-                            ),
-                            style: TextStyle(
-                              color: Theme.of(context).colorScheme.primary,
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      if (song != null)
-                        IconButton(
-                          tooltip: 'Favorite',
-                          onPressed: () => ref
-                              .read(favoritesProvider.notifier)
-                              .toggle(song.id),
-                          icon: AnimatedSwitcher(
-                            duration: const Duration(milliseconds: 300),
-                            transitionBuilder: (child, animation) =>
-                                ScaleTransition(
-                                  scale: CurvedAnimation(
-                                    parent: animation,
-                                    curve: Curves.elasticOut,
-                                  ),
-                                  child: child,
-                                ),
-                            child: Icon(
-                              isFavorite
-                                  ? Icons.favorite_rounded
-                                  : Icons.favorite_border_rounded,
-                              key: ValueKey(isFavorite),
-                              color: isFavorite
-                                  ? Colors.redAccent
-                                  : colors.textPrimary,
-                              size: 22,
-                            ),
-                          ),
-                        ),
-                      PopupMenuButton<String>(
-                        icon: Icon(
-                          Icons.more_vert_rounded,
-                          color: colors.textPrimary,
-                        ),
-                        color: colors.surfaceElevated,
-                        itemBuilder: (_) => [
-                          const PopupMenuItem(
-                            value: 'queue',
-                            child: Text('View Queue'),
-                          ),
-                          const PopupMenuItem(
-                            value: 'equalizer',
-                            child: Text('Equalizer'),
-                          ),
-                          PopupMenuItem(
-                            value: 'sleep',
-                            child: Text(
-                              sleepTimer.isActive
-                                  ? 'Cancel Sleep Timer'
-                                  : 'Sleep Timer',
-                            ),
-                          ),
-                          PopupMenuItem(
-                            value: 'visualizer',
-                            child: Text(
-                              isVisualizerMode
-                                  ? 'Normal View'
-                                  : 'Visualizer Bars',
-                            ),
-                          ),
-                        ],
-                        onSelected: (value) {
-                          if (value == 'queue') {
-                            _showQueueSheet(context);
-                          } else if (value == 'equalizer') {
-                            Navigator.push(
-                              context,
-                              NenSlideRoute(
-                                builder: (_) => const EqualizerScreen(),
-                              ),
-                            );
-                          } else if (value == 'visualizer') {
-                            ref.read(isVisualizerModeProvider.notifier).state =
-                                !isVisualizerMode;
-                          } else if (value == 'sleep') {
-                            if (sleepTimer.isActive) {
-                              ref.read(sleepTimerProvider.notifier).cancel();
-                            } else {
-                              _showSleepTimerPicker(context, ref);
-                            }
-                          }
-                        },
-                      ),
-                    ],
-                  ),
-                ],
+              child: Text(
+                _formatDuration(sleepTimer.remaining ?? Duration.zero),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.primary,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
+          PopupMenuButton<String>(
+            icon: Icon(
+              Icons.more_horiz_rounded,
+              color: colors.textPrimary,
+              size: 28,
+            ),
+            color: colors.surfaceElevated,
+            itemBuilder: (_) => [
+              const PopupMenuItem(value: 'queue', child: Text('View Queue')),
+              const PopupMenuItem(value: 'equalizer', child: Text('Equalizer')),
+              PopupMenuItem(
+                value: 'sleep',
+                child: Text(
+                  sleepTimer.isActive ? 'Cancel Sleep Timer' : 'Sleep Timer',
+                ),
+              ),
+            ],
+            onSelected: (value) {
+              if (value == 'queue') {
+                _showQueueSheet(context);
+              } else if (value == 'equalizer') {
+                Navigator.push(
+                  context,
+                  NenSlideRoute(builder: (_) => const EqualizerScreen()),
+                );
+              } else if (value == 'sleep') {
+                if (sleepTimer.isActive) {
+                  ref.read(sleepTimerProvider.notifier).cancel();
+                } else {
+                  _showSleepTimerPicker(context, ref);
+                }
+              }
+            },
           ),
-        ),
+        ],
       ),
     );
   }
@@ -323,15 +180,18 @@ class NowPlayingScreen extends ConsumerWidget {
     Song? song,
     double artSize,
     bool isPlaying,
-    bool isVisualizerMode,
   ) {
     final colors = NenTheme.of(context);
     final artAsync = song != null ? ref.watch(albumArtProvider(song.id)) : null;
 
+    // We increase width slightly to make room for the vinyl sticking out.
+    final containerWidth = artSize + (artSize * 0.3);
+
     return _AnimatedAccentBuilder(
       songId: song?.id,
       builder: (accentColor) {
-        final artContent = artAsync?.when(
+        final artContent =
+            artAsync?.when(
               data: (art) => _buildAlbumArtImage(art, accentColor, colors),
               loading: () => _defaultArtPlaceholder(accentColor),
               error: (e, s) => _defaultArtPlaceholder(accentColor),
@@ -341,50 +201,42 @@ class NowPlayingScreen extends ConsumerWidget {
         return Hero(
           tag: _kHeroTag,
           child: SizedBox(
-            width: artSize,
+            width: containerWidth,
             height: artSize,
             child: Stack(
-              alignment: Alignment.center,
+              alignment: Alignment.centerLeft,
               children: [
-                // Vinyl disc layer — rotates independently beneath the art
-                _VinylDisc(
-                  size: artSize,
-                  isPlaying: isPlaying,
-                  accentColor: accentColor,
-                ),
-                // Album art — static circle inset over the disc
-                Container(
-                  width: artSize * 0.78,
-                  height: artSize * 0.78,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: accentColor.withValues(alpha: 0.35),
-                        blurRadius: 40,
-                        spreadRadius: 4,
-                        offset: const Offset(0, 6),
-                      ),
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.4),
-                        blurRadius: 20,
-                        offset: const Offset(0, 4),
-                      ),
-                    ],
+                // Vinyl disc layer — rotates independently, offset to the right
+                Positioned(
+                  right: 0,
+                  child: _VinylDisc(
+                    size: artSize * 0.96,
+                    isPlaying: isPlaying,
+                    accentColor: accentColor,
                   ),
-                  child: ClipOval(child: artContent),
                 ),
-                // Visualizer bars overlay (optional mode)
-                if (isVisualizerMode)
-                  Positioned.fill(
-                    child: ClipOval(
-                      child: AnimatedOpacity(
-                        opacity: 1.0,
-                        duration: const Duration(milliseconds: 400),
-                        child: _VisualizerWidget(color: accentColor),
-                      ),
+                // Album art — rounded rectangle blocking the left side of the disc
+                Positioned(
+                  left: 0,
+                  child: Container(
+                    width: artSize,
+                    height: artSize,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(24),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(alpha: 0.5),
+                          blurRadius: 30,
+                          offset: const Offset(4, 12),
+                        ),
+                      ],
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: artContent,
                     ),
                   ),
+                ),
               ],
             ),
           ),
@@ -432,38 +284,31 @@ class NowPlayingScreen extends ConsumerWidget {
     final colors = NenTheme.of(context);
     final title = _getDisplayTitle(song);
     final artist = _getDisplayArtist(song);
-    final isUnknownArtist = artist == 'Unknown Artist';
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 28),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          SizedBox(
-            height: 28,
-            child: OverflowMarqueeText(
-              text: title,
-              textAlign: TextAlign.start,
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: 20,
-                fontWeight: FontWeight.w600,
-              ),
+          OverflowMarqueeText(
+            text: title,
+            textAlign: TextAlign.start,
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontSize: 24,
+              fontWeight: FontWeight.w700,
+              letterSpacing: -0.5,
             ),
           ),
           const SizedBox(height: 4),
-          SizedBox(
-            height: 20,
-            child: OverflowMarqueeText(
-              text: artist.isEmpty ? '\u200B' : artist,
-              textAlign: TextAlign.start,
-              style: TextStyle(
-                color: isUnknownArtist
-                    ? colors.textSecondary
-                    : colors.textPrimary.withValues(alpha: 0.7),
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-              ),
+          OverflowMarqueeText(
+            text: artist.isEmpty ? '\u200B' : artist,
+            textAlign: TextAlign.start,
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
             ),
           ),
         ],
@@ -479,35 +324,15 @@ class NowPlayingScreen extends ConsumerWidget {
     PlaybackState playback,
   ) {
     return RepaintBoundary(
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 16),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(24),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
-            child: Container(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              decoration: BoxDecoration(
-                color: Colors.white.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(
-                  color: Colors.white.withValues(alpha: 0.08),
-                  width: 0.5,
-                ),
-              ),
-              child: Column(
-                children: [
-                  _buildProgressBar(context, ref, playback),
-                  const SizedBox(height: 12),
-                  _buildControls(context, ref, playback),
-                  const SizedBox(height: 8),
-                  _buildVolumeBar(context, ref, playback),
-                  const SizedBox(height: 4),
-                  _buildSpeedControl(context, ref, playback),
-                ],
-              ),
-            ),
-          ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildProgressBar(context, ref, playback),
+            const SizedBox(height: 24),
+            _buildControls(context, ref, playback),
+          ],
         ),
       ),
     );
@@ -524,50 +349,69 @@ class NowPlayingScreen extends ConsumerWidget {
         ? playback.duration
         : const Duration(seconds: 1);
 
+    final progressFraction = (position.inMilliseconds / duration.inMilliseconds)
+        .clamp(0.0, 1.0);
+
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          _AnimatedAccentBuilder(
-            songId: playback.currentSong?.id,
-            builder: (accentColor) => SliderTheme(
-              data: SliderTheme.of(context).copyWith(
-                trackHeight: 4,
-                thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-                overlayShape:
-                    const RoundSliderOverlayShape(overlayRadius: 18),
-                activeTrackColor: accentColor,
-                inactiveTrackColor: accentColor.withValues(alpha: 0.2),
-                thumbColor: accentColor,
-                overlayColor: accentColor.withValues(alpha: 0.2),
-                // Larger tap target so the user can seek by tapping anywhere
-                trackShape: const RoundedRectSliderTrackShape(),
-              ),
-              child: Slider(
-                value: position.inMilliseconds
-                    .toDouble()
-                    .clamp(0, duration.inMilliseconds.toDouble()),
-                max: duration.inMilliseconds.toDouble(),
-                onChanged: (value) {
-                  ref
-                      .read(playbackProvider.notifier)
-                      .seek(Duration(milliseconds: value.toInt()));
-                },
+          // Vertical bars representation
+          SizedBox(
+            height: 32,
+            child: CustomPaint(
+              size: const Size(double.infinity, 32),
+              painter: _DenseProgressBarPainter(
+                progress: progressFraction,
+                activeColor: colors.textSecondary,
+                inactiveColor: colors.textTertiary.withValues(alpha: 0.2),
               ),
             ),
           ),
+          SliderTheme(
+            data: SliderTheme.of(context).copyWith(
+              trackHeight: 3,
+              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
+              overlayShape: const RoundSliderOverlayShape(overlayRadius: 16),
+              activeTrackColor: colors.textPrimary,
+              inactiveTrackColor: colors.textSecondary.withValues(alpha: 0.2),
+              thumbColor: colors.textPrimary,
+              trackShape: const RoundedRectSliderTrackShape(),
+            ),
+            child: Slider(
+              value: position.inMilliseconds.toDouble().clamp(
+                0,
+                duration.inMilliseconds.toDouble(),
+              ),
+              max: duration.inMilliseconds.toDouble(),
+              onChanged: (value) {
+                ref
+                    .read(playbackProvider.notifier)
+                    .seek(Duration(milliseconds: value.toInt()));
+              },
+            ),
+          ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
                   _formatDuration(position),
-                  style: TextStyle(color: colors.textTertiary, fontSize: 11),
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 Text(
                   _formatDuration(duration),
-                  style: TextStyle(color: colors.textTertiary, fontSize: 11),
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ],
             ),
@@ -583,74 +427,81 @@ class NowPlayingScreen extends ConsumerWidget {
     PlaybackState playback,
   ) {
     final colors = NenTheme.of(context);
-    final accent = Theme.of(context).colorScheme.primary;
     final isShuffleOn = playback.shuffleMode == ShuffleMode.on;
     final isRepeatActive = playback.repeatMode != NenRepeatMode.off;
     final isRepeatOne = playback.repeatMode == NenRepeatMode.one;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
         children: [
-          // Shuffle
-          _ActiveIconButton(
-            icon: Icons.shuffle_rounded,
-            isActive: isShuffleOn,
-            activeColor: accent,
-            inactiveColor: colors.textTertiary,
-            tooltip: 'Shuffle',
+          IconButton(
+            icon: Icon(
+              Icons.shuffle_rounded,
+              size: 26,
+              color: isShuffleOn ? colors.textPrimary : colors.textTertiary,
+            ),
             onPressed: () =>
                 ref.read(playbackProvider.notifier).toggleShuffle(),
+            tooltip: 'Shuffle',
           ),
-          // Previous — plain IconButton (fast to scan, focus stays on primary)
-          Semantics(
-            label: 'Previous track',
-            button: true,
+          IconButton(
+            icon: Icon(
+              Icons.skip_previous_rounded,
+              color: colors.textPrimary,
+              size: 36,
+            ),
+            onPressed: () => ref.read(playbackProvider.notifier).previous(),
+            tooltip: 'Previous',
+          ),
+          // Glowing Play/Pause button
+          Container(
+            width: 72,
+            height: 72,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Theme.of(context).colorScheme.primary,
+              boxShadow: [
+                BoxShadow(
+                  color: Theme.of(
+                    context,
+                  ).colorScheme.primary.withValues(alpha: 0.4),
+                  blurRadius: 20,
+                  spreadRadius: 4,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
             child: IconButton(
               icon: Icon(
-                Icons.skip_previous_rounded,
-                color: colors.textPrimary,
-                size: 36,
+                playback.isPlaying
+                    ? Icons.pause_rounded
+                    : Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 38,
               ),
-              onPressed: () => ref.read(playbackProvider.notifier).previous(),
-              tooltip: 'Previous',
-            ),
-          ),
-          // Play / Pause — primary button with pulsing ring while playing
-          _AnimatedAccentBuilder(
-            songId: playback.currentSong?.id,
-            builder: (accentColor) => _PulsingPlayButton(
-              isPlaying: playback.isPlaying,
-              accentColor: accentColor,
               onPressed: () =>
                   ref.read(playbackProvider.notifier).togglePlayPause(),
             ),
           ),
-          // Next — plain IconButton
-          Semantics(
-            label: 'Next track',
-            button: true,
-            child: IconButton(
-              icon: Icon(
-                Icons.skip_next_rounded,
-                color: colors.textPrimary,
-                size: 36,
-              ),
-              onPressed: () => ref.read(playbackProvider.notifier).next(),
-              tooltip: 'Next',
+          IconButton(
+            icon: Icon(
+              Icons.skip_next_rounded,
+              color: colors.textPrimary,
+              size: 36,
             ),
+            onPressed: () => ref.read(playbackProvider.notifier).next(),
+            tooltip: 'Next',
           ),
-          // Repeat
-          _ActiveIconButton(
-            icon: isRepeatOne
-                ? Icons.repeat_one_rounded
-                : Icons.repeat_rounded,
-            isActive: isRepeatActive,
-            activeColor: accent,
-            inactiveColor: colors.textTertiary,
-            tooltip: 'Repeat',
+          IconButton(
+            icon: Icon(
+              isRepeatOne ? Icons.repeat_one_rounded : Icons.repeat_rounded,
+              size: 26,
+              color: isRepeatActive ? colors.textPrimary : colors.textTertiary,
+            ),
             onPressed: () => ref.read(playbackProvider.notifier).cycleRepeat(),
+            tooltip: 'Repeat',
           ),
         ],
       ),
@@ -728,78 +579,87 @@ class NowPlayingScreen extends ConsumerWidget {
     final isLyrics = ref.watch(lyricsVisibleProvider);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-        children: [
-          // Heart
-          IconButton(
-            tooltip: isFavorite ? 'Remove from favourites' : 'Add to favourites',
-            onPressed: song == null
-                ? null
-                : () => ref.read(favoritesProvider.notifier).toggle(song.id),
-            icon: AnimatedSwitcher(
-              duration: const Duration(milliseconds: 250),
-              transitionBuilder: (child, animation) => ScaleTransition(
-                scale: CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.elasticOut,
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Container(
+        height: 64,
+        decoration: BoxDecoration(
+          color: colors.surfaceElevated,
+          borderRadius: BorderRadius.circular(32),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+          children: [
+            // Heart
+            IconButton(
+              tooltip: isFavorite
+                  ? 'Remove from favourites'
+                  : 'Add to favourites',
+              onPressed: song == null
+                  ? null
+                  : () => ref.read(favoritesProvider.notifier).toggle(song.id),
+              icon: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 250),
+                transitionBuilder: (child, animation) => ScaleTransition(
+                  scale: CurvedAnimation(
+                    parent: animation,
+                    curve: Curves.elasticOut,
+                  ),
+                  child: child,
                 ),
-                child: child,
-              ),
-              child: Icon(
-                isFavorite
-                    ? Icons.favorite_rounded
-                    : Icons.favorite_border_rounded,
-                key: ValueKey(isFavorite),
-                color: isFavorite ? Colors.redAccent : colors.textSecondary,
-                size: 22,
+                child: Icon(
+                  isFavorite
+                      ? Icons.favorite_rounded
+                      : Icons.favorite_border_rounded,
+                  key: ValueKey(isFavorite),
+                  color: isFavorite ? Colors.redAccent : Colors.white,
+                  size: 24,
+                ),
               ),
             ),
-          ),
-          // Add to playlist
-          IconButton(
-            tooltip: 'Add to playlist',
-            onPressed: song == null
-                ? null
-                : () => showSongActionsSheet(context, ref, song),
-            icon: Icon(
-              Icons.playlist_add_rounded,
-              color: colors.textSecondary,
-              size: 22,
+            // Add to playlist
+            IconButton(
+              tooltip: 'Add to playlist',
+              onPressed: song == null
+                  ? null
+                  : () => showSongActionsSheet(context, ref, song),
+              icon: Icon(
+                Icons.playlist_add_rounded,
+                color: colors.textPrimary,
+                size: 26,
+              ),
             ),
-          ),
-          // Share
-          IconButton(
-            tooltip: 'Share',
-            onPressed: song == null
-                ? null
-                : () => ScaffoldMessenger.of(context).showSnackBar(
+            // Share
+            IconButton(
+              tooltip: 'Share',
+              onPressed: song == null
+                  ? null
+                  : () => ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text('Sharing "${song.title}"'),
                         behavior: SnackBarBehavior.floating,
                       ),
                     ),
-            icon: Icon(
-              Icons.share_rounded,
-              color: colors.textSecondary,
-              size: 22,
+              icon: Icon(
+                Icons.share_rounded,
+                color: colors.textPrimary,
+                size: 22,
+              ),
             ),
-          ),
-          // Lyrics toggle
-          IconButton(
-            tooltip: isLyrics ? 'Hide lyrics' : 'Show lyrics',
-            onPressed: () =>
-                ref.read(lyricsVisibleProvider.notifier).state = !isLyrics,
-            icon: Icon(
-              Icons.lyrics_rounded,
-              color: isLyrics
-                  ? Theme.of(context).colorScheme.primary
-                  : colors.textSecondary,
-              size: 22,
+            // Lyrics toggle
+            IconButton(
+              tooltip: isLyrics ? 'Hide lyrics' : 'Show lyrics',
+              onPressed: () =>
+                  ref.read(lyricsVisibleProvider.notifier).state = !isLyrics,
+              icon: Icon(
+                Icons.lyrics_rounded,
+                color: isLyrics
+                    ? Theme.of(context).colorScheme.primary
+                    : colors.textPrimary,
+                size: 22,
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -877,8 +737,9 @@ class NowPlayingScreen extends ConsumerWidget {
                             leading: isCurrent
                                 ? Icon(
                                     Icons.equalizer_rounded,
-                                    color:
-                                        Theme.of(context).colorScheme.primary,
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.primary,
                                   )
                                 : Text(
                                     '${index + 1}',
@@ -946,83 +807,90 @@ class NowPlayingScreen extends ConsumerWidget {
 
     showModalBottomSheet<void>(
       context: context,
+      isScrollControlled: true,
       backgroundColor: colors.surfaceElevated,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
       builder: (sheetContext) {
-        return Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Sleep Timer',
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 16),
-              ...durations.map((duration) {
-                return ListTile(
-                  title: Text(
-                    '${duration.inMinutes} minutes',
-                    style: TextStyle(color: colors.textPrimary),
+        return SingleChildScrollView(
+          child: Padding(
+            padding: const EdgeInsets.all(24),
+            child: SafeArea(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Sleep Timer',
+                    style: TextStyle(
+                      color: colors.textPrimary,
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
-                  onTap: () {
-                    _startSleepTimer(
-                      context,
-                      ref,
-                      duration,
-                      message: 'Sleep timer set for ${duration.inMinutes} min',
+                  const SizedBox(height: 16),
+                  ...durations.map((duration) {
+                    return ListTile(
+                      title: Text(
+                        '${duration.inMinutes} minutes',
+                        style: TextStyle(color: colors.textPrimary),
+                      ),
+                      onTap: () {
+                        _startSleepTimer(
+                          context,
+                          ref,
+                          duration,
+                          message:
+                              'Sleep timer set for ${duration.inMinutes} min',
+                        );
+                        Navigator.pop(sheetContext);
+                      },
                     );
-                    Navigator.pop(sheetContext);
-                  },
-                );
-              }),
-              ListTile(
-                title: Text(
-                  'Custom minutes',
-                  style: TextStyle(color: colors.textPrimary),
-                ),
-                onTap: () async {
-                  Navigator.pop(sheetContext);
-                  final duration = await _showCustomSleepDurationDialog(
-                    context,
-                  );
-                  if (duration != null && context.mounted) {
-                    _startSleepTimer(
-                      context,
-                      ref,
-                      duration,
-                      message: 'Sleep timer set for ${duration.inMinutes} min',
-                    );
-                  }
-                },
+                  }),
+                  ListTile(
+                    title: Text(
+                      'Custom minutes',
+                      style: TextStyle(color: colors.textPrimary),
+                    ),
+                    onTap: () async {
+                      Navigator.pop(sheetContext);
+                      final duration = await _showCustomSleepDurationDialog(
+                        context,
+                      );
+                      if (duration != null && context.mounted) {
+                        _startSleepTimer(
+                          context,
+                          ref,
+                          duration,
+                          message:
+                              'Sleep timer set for ${duration.inMinutes} min',
+                        );
+                      }
+                    },
+                  ),
+                  ListTile(
+                    title: Text(
+                      'End of track',
+                      style: TextStyle(color: colors.textPrimary),
+                    ),
+                    onTap: () {
+                      final playback = ref.read(playbackProvider);
+                      final remaining = playback.duration - playback.position;
+                      if (remaining > Duration.zero) {
+                        _startSleepTimer(
+                          context,
+                          ref,
+                          remaining,
+                          message: 'Sleep timer set for end of track',
+                        );
+                      }
+                      Navigator.pop(sheetContext);
+                    },
+                  ),
+                ],
               ),
-              ListTile(
-                title: Text(
-                  'End of track',
-                  style: TextStyle(color: colors.textPrimary),
-                ),
-                onTap: () {
-                  final playback = ref.read(playbackProvider);
-                  final remaining = playback.duration - playback.position;
-                  if (remaining > Duration.zero) {
-                    _startSleepTimer(
-                      context,
-                      ref,
-                      remaining,
-                      message: 'Sleep timer set for end of track',
-                    );
-                  }
-                  Navigator.pop(sheetContext);
-                },
-              ),
-            ],
+            ),
           ),
         );
       },
@@ -1087,7 +955,9 @@ class NowPlayingScreen extends ConsumerWidget {
   static String _getDisplayTitle(Song? song) {
     if (song == null) return 'No Song';
     final t = song.title.trim();
-    if (t.isNotEmpty && t != '<unknown>') return t;
+    if (t.isNotEmpty && t != '<unknown>') {
+      return _looksLikeFilename(t, song.filePath) ? _parseFilenameTitle(t) : t;
+    }
     return _parseFilenameTitle(song.filePath);
   }
 
@@ -1100,7 +970,7 @@ class NowPlayingScreen extends ConsumerWidget {
 
   /// Strip extension, replace _ and - with spaces, title-case each word.
   static String _parseFilenameTitle(String filePath) {
-    final filename = filePath.split('/').last;
+    final filename = filePath.split(RegExp(r'[\\/]')).last;
     final noExt = filename.contains('.')
         ? filename.substring(0, filename.lastIndexOf('.'))
         : filename;
@@ -1114,6 +984,20 @@ class NowPlayingScreen extends ConsumerWidget {
               : '${w[0].toUpperCase()}${w.substring(1).toLowerCase()}',
         )
         .join(' ');
+  }
+
+  static bool _looksLikeFilename(String value, String filePath) {
+    if (value.contains('/') || value.contains('\\')) return true;
+    if (value.contains('_')) return true;
+    if (RegExp(
+      r'\.(mp3|m4a|flac|wav|ogg|aac)$',
+      caseSensitive: false,
+    ).hasMatch(value)) {
+      return true;
+    }
+
+    final basename = filePath.split(RegExp(r'[\\/]')).last;
+    return basename.isNotEmpty && value.toLowerCase() == basename.toLowerCase();
   }
 
   static String _formatDuration(Duration duration) {
@@ -1188,7 +1072,11 @@ class _ActiveIconButton extends StatelessWidget {
         shape: BoxShape.circle,
       ),
       child: IconButton(
-        icon: Icon(icon, color: isActive ? activeColor : inactiveColor, size: 22),
+        icon: Icon(
+          icon,
+          color: isActive ? activeColor : inactiveColor,
+          size: 22,
+        ),
         onPressed: onPressed,
         tooltip: tooltip,
       ),
@@ -1226,12 +1114,14 @@ class _PulsingPlayButtonState extends State<_PulsingPlayButton>
       vsync: this,
       duration: const Duration(milliseconds: 1100),
     );
-    _pulseScale = Tween<double>(begin: 1.0, end: 1.5).animate(
-      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeOut),
-    );
-    _pulseOpacity = Tween<double>(begin: 0.5, end: 0.0).animate(
-      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeOut),
-    );
+    _pulseScale = Tween<double>(
+      begin: 1.0,
+      end: 1.5,
+    ).animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeOut));
+    _pulseOpacity = Tween<double>(
+      begin: 0.5,
+      end: 0.0,
+    ).animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeOut));
     if (widget.isPlaying) _pulseCtrl.repeat();
   }
 
@@ -1273,8 +1163,9 @@ class _PulsingPlayButtonState extends State<_PulsingPlayButton>
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     border: Border.all(
-                      color: widget.accentColor
-                          .withValues(alpha: _pulseOpacity.value),
+                      color: widget.accentColor.withValues(
+                        alpha: _pulseOpacity.value,
+                      ),
                       width: 2,
                     ),
                   ),
@@ -1333,11 +1224,7 @@ class _VinylPainter extends CustomPainter {
     final radius = size.width / 2;
 
     // Base disc — very dark
-    canvas.drawCircle(
-      center,
-      radius,
-      Paint()..color = const Color(0xFF121212),
-    );
+    canvas.drawCircle(center, radius, Paint()..color = const Color(0xFF121212));
 
     // Concentric groove rings (subtle shimmer)
     final groovePaint = Paint()
@@ -1441,54 +1328,42 @@ class _VisualizerWidget extends ConsumerStatefulWidget {
 }
 
 class _VisualizerWidgetState extends ConsumerState<_VisualizerWidget>
-    with SingleTickerProviderStateMixin {
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _animController;
   final _barHeights = List<double>.filled(_kBarCount, 0.0);
 
   @override
   void initState() {
     super.initState();
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 4),
-    )
-      ..addListener(_onFrame)
-      ..repeat();
+    WidgetsBinding.instance.addObserver(this);
+    _animController =
+        AnimationController(vsync: this, duration: const Duration(seconds: 4))
+          ..addListener(_onFrame)
+          ..repeat();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _animController.stop();
+    } else if (state == AppLifecycleState.resumed) {
+      _animController.repeat();
+    }
   }
 
   void _onFrame() {
     if (!mounted) return;
-
-    final isPlaying = ref.read(playbackProvider).isPlaying;
-
-    if (!isPlaying) {
-      // Decay bars to zero when paused
-      for (int i = 0; i < _barHeights.length; i++) {
-        _barHeights[i] = lerpDouble(_barHeights[i], 0.0, 0.15)!;
-      }
-      return;
-    }
-
-    // Feed real FFT frequency band data into the bar heights
-    final bands = ref.read(frequencyBandsProvider);
-    final vals = bands.toList(); // 7 normalized band values [0.0..1.0]
-
-    for (int i = 0; i < _barHeights.length; i++) {
-      // Interpolate across the 7 bands to fill _kBarCount bars
-      final t = i / (_barHeights.length - 1);
-      final rawIdx = t * (vals.length - 1);
-      final lo = rawIdx.floor().clamp(0, vals.length - 1);
-      final hi = rawIdx.ceil().clamp(0, vals.length - 1);
-      final frac = rawIdx - lo;
-      final bandValue = vals[lo] * (1 - frac) + vals[hi] * frac;
-
-      final target = bandValue * 72.0; // scale normalized value → pixel height
-      _barHeights[i] = lerpDouble(_barHeights[i], target, 0.3)!;
-    }
+    _driveVisualizerHeights(
+      ref: ref,
+      currentHeights: _barHeights,
+      maxHeight: 20,
+    );
   }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _animController.dispose();
     super.dispose();
   }
@@ -1500,10 +1375,7 @@ class _VisualizerWidgetState extends ConsumerState<_VisualizerWidget>
       builder: (context, _) {
         return SizedBox.expand(
           child: CustomPaint(
-            painter: _BarPainter(
-              barHeights: _barHeights,
-              color: widget.color,
-            ),
+            painter: _BarPainter(barHeights: _barHeights, color: widget.color),
           ),
         );
       },
@@ -1552,10 +1424,7 @@ class _BarPainter extends CustomPainter {
 
       // Bottom bar (mirror, extends downward from center)
       canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(x, centerY, barWidth, h),
-          radius,
-        ),
+        RRect.fromRectAndRadius(Rect.fromLTWH(x, centerY, barWidth, h), radius),
         paint,
       );
     }
@@ -1563,4 +1432,229 @@ class _BarPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_BarPainter old) => true;
+}
+
+// ── Dense Progress Bar Painter ────────────────────────────────────────
+
+class _DenseProgressBarPainter extends CustomPainter {
+  final double progress;
+  final Color activeColor;
+  final Color inactiveColor;
+
+  const _DenseProgressBarPainter({
+    required this.progress,
+    required this.activeColor,
+    required this.inactiveColor,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final barWidth = 2.0;
+    final gap = 2.0;
+    final totalBars = (size.width / (barWidth + gap)).floor();
+    final activeBars = (totalBars * progress).floor();
+
+    for (int i = 0; i < totalBars; i++) {
+      final x = i * (barWidth + gap);
+      // Optional: slight height variance based on i, but mockup shows flat
+      final h = size.height;
+      final paint = Paint()
+        ..color = i < activeBars ? activeColor : inactiveColor
+        ..style = PaintingStyle.fill;
+
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(x, 0, barWidth, h),
+          const Radius.circular(1),
+        ),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_DenseProgressBarPainter old) =>
+      old.progress != progress ||
+      old.activeColor != activeColor ||
+      old.inactiveColor != inactiveColor;
+}
+
+// ── Mini Row Visualizer for Top Header ────────────────────────────────
+class _VisualizerRowWidget extends ConsumerStatefulWidget {
+  const _VisualizerRowWidget();
+
+  @override
+  ConsumerState<_VisualizerRowWidget> createState() =>
+      _VisualizerRowWidgetState();
+}
+
+class _VisualizerRowWidgetState extends ConsumerState<_VisualizerRowWidget>
+    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  late final AnimationController _animController;
+  final _barHeights = List<double>.filled(40, 0.0);
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _animController =
+        AnimationController(vsync: this, duration: const Duration(seconds: 4))
+          ..addListener(_onFrame)
+          ..repeat();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused ||
+        state == AppLifecycleState.inactive) {
+      _animController.stop();
+    } else if (state == AppLifecycleState.resumed) {
+      _animController.repeat();
+    }
+  }
+
+  void _onFrame() {
+    if (!mounted) return;
+    _driveVisualizerHeights(
+      ref: ref,
+      currentHeights: _barHeights,
+      maxHeight: 16,
+      floorHeight: 2,
+      mirrorFromCenter: true,
+    );
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _animController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _animController,
+      builder: (context, _) {
+        return SizedBox.expand(
+          child: CustomPaint(
+            painter: _RowBarPainter(
+              barHeights: _barHeights,
+              color: Theme.of(
+                context,
+              ).colorScheme.primary, // Dynamic theme color
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _RowBarPainter extends CustomPainter {
+  final List<double> barHeights;
+  final Color color;
+
+  const _RowBarPainter({required this.barHeights, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final n = barHeights.length;
+    if (n == 0) return;
+
+    final barWidth = 3.0;
+    final gap = ((size.width - (n * barWidth)) / (n > 1 ? n - 1 : 1))
+        .clamp(0.0, double.infinity)
+        .toDouble();
+    final centerY = size.height / 2;
+
+    final paint = Paint()
+      ..color = color
+      ..strokeCap = StrokeCap.round
+      ..strokeWidth = barWidth;
+
+    for (int i = 0; i < n; i++) {
+      final h = barHeights[i].clamp(2.0, size.height).toDouble();
+      final x = i * (barWidth + gap) + (barWidth / 2);
+
+      canvas.drawLine(
+        Offset(x, centerY - (h / 2)),
+        Offset(x, centerY + (h / 2)),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(_RowBarPainter old) => true;
+}
+
+void _driveVisualizerHeights({
+  required WidgetRef ref,
+  required List<double> currentHeights,
+  required double maxHeight,
+  double floorHeight = 0,
+  bool mirrorFromCenter = false,
+}) {
+  final isPlaying = ref.read(playbackProvider).isPlaying;
+  if (!isPlaying) {
+    for (int i = 0; i < currentHeights.length; i++) {
+      currentHeights[i] = lerpDouble(currentHeights[i], floorHeight, 0.18)!;
+    }
+    return;
+  }
+
+  final audio = ref.read(audioRepositoryProvider);
+  if (!audio.isInitialized) {
+    for (int i = 0; i < currentHeights.length; i++) {
+      currentHeights[i] = lerpDouble(currentHeights[i], floorHeight, 0.18)!;
+    }
+    return;
+  }
+
+  final values = FFTProcessor.process(audio.getFFTData()).toList();
+  if (values.every((value) => value <= 0.001)) {
+    for (int i = 0; i < currentHeights.length; i++) {
+      currentHeights[i] = lerpDouble(currentHeights[i], floorHeight, 0.18)!;
+    }
+    return;
+  }
+
+  for (int i = 0; i < currentHeights.length; i++) {
+    final sample = _sampleBandValue(
+      values,
+      index: i,
+      total: currentHeights.length,
+      mirrorFromCenter: mirrorFromCenter,
+    );
+    final target = floorHeight + (sample * maxHeight);
+    currentHeights[i] = lerpDouble(currentHeights[i], target, 0.32)!;
+  }
+}
+
+double _sampleBandValue(
+  List<double> values, {
+  required int index,
+  required int total,
+  required bool mirrorFromCenter,
+}) {
+  if (values.isEmpty) return 0;
+  if (values.length == 1 || total <= 1) return values.first;
+
+  final t = mirrorFromCenter
+      ? _distanceFromCenter(index, total)
+      : index / (total - 1);
+  final rawIndex = t * (values.length - 1);
+  final lower = rawIndex.floor().clamp(0, values.length - 1);
+  final upper = rawIndex.ceil().clamp(0, values.length - 1);
+  final fraction = rawIndex - lower;
+
+  return (values[lower] * (1 - fraction)) + (values[upper] * fraction);
+}
+
+double _distanceFromCenter(int index, int total) {
+  if (total <= 1) return 0;
+  final center = (total - 1) / 2;
+  if (center == 0) return 0;
+  return ((index - center).abs() / center).clamp(0.0, 1.0);
 }

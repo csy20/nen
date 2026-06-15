@@ -21,8 +21,8 @@ class SongTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final artAsync = ref.watch(albumArtProvider(song.id));
-    final playback = ref.watch(playbackProvider);
-    final isPlaying = playback.currentSong?.id == song.id;
+    final currentSongId = ref.watch(currentSongIdProvider);
+    final isPlaying = currentSongId == song.id;
     final favorites = ref.watch(favoritesProvider);
     final isFav = favorites.contains(song.id);
     final colors = NenTheme.of(context);
@@ -30,10 +30,10 @@ class SongTile extends ConsumerWidget {
     return ListTile(
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       leading: ClipRRect(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(16),
         child: SizedBox(
-          width: 48,
-          height: 48,
+          width: 52,
+          height: 52,
           child: artAsync.when(
             data: (art) {
               if (art != null && art.isNotEmpty) {
@@ -75,8 +75,8 @@ class SongTile extends ConsumerWidget {
             onTap: () => ref.read(favoritesProvider.notifier).toggle(song.id),
             child: Icon(
               isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-              color: isFav ? Colors.redAccent : colors.textTertiary,
-              size: 18,
+              color: isFav ? Colors.cyanAccent : colors.textTertiary,
+              size: 20,
             ),
           ),
           const SizedBox(width: 8),
@@ -96,7 +96,7 @@ class SongTile extends ConsumerWidget {
     return Container(
       color: colors.surfaceElevated,
       child: Icon(
-        Icons.music_note_rounded,
+        Icons.graphic_eq_rounded,
         color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.5),
       ),
     );

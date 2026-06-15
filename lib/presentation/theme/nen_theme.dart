@@ -3,18 +3,6 @@ import 'package:flutter/material.dart';
 // ── Design Tokens ───────────────────────────────────────────────────
 // Japanese glassmorphic aesthetic with Ma whitespace principles.
 
-/// Spacing scale based on 4px grid with generous Ma whitespace.
-class NenSpacing {
-  NenSpacing._();
-  static const double xs = 4;
-  static const double sm = 8;
-  static const double md = 16;
-  static const double lg = 24;
-  static const double xl = 32;
-  static const double xxl = 48;
-  static const double xxxl = 64;
-}
-
 /// Border radius tokens.
 class NenRadius {
   NenRadius._();
@@ -56,17 +44,6 @@ class NenShadows {
       blurRadius: 4,
     ),
   ];
-}
-
-/// Mood color palette — Japanese-inspired names.
-class NenMoodColors {
-  NenMoodColors._();
-  static const Color sakura = Color(0xFFFFB7C5); // calm
-  static const Color maple = Color(0xFFC41E3A); // energy
-  static const Color matcha = Color(0xFF88AB75); // joy
-  static const Color rain = Color(0xFF7BA7BC); // melancholy
-  static const Color wisteria = Color(0xFF8B7EC8); // focus
-  static const Color yuzu = Color(0xFFF5C518); // anger/intensity
 }
 
 /// Nen app theme with dark-first Japanese glassmorphic aesthetic.
@@ -146,10 +123,6 @@ class NenTheme {
       navBarBg: backgroundPrimaryLight,
     );
   }
-
-  /// Legacy build method — returns dark theme for backward compatibility.
-  static ThemeData build({Color? accentColor}) =>
-      buildDark(accentColor: accentColor);
 
   static ThemeData _buildTheme({
     required Brightness brightness,

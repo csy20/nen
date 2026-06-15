@@ -179,7 +179,7 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
   void _showCreateDialog(BuildContext context) {
     final colors = NenTheme.of(context);
     final controller = TextEditingController();
-    showDialog(
+    final dialog = showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: colors.surfaceElevated,
@@ -211,12 +211,13 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
         ],
       ),
     );
+    dialog.then((_) => controller.dispose());
   }
 
   void _showRenameDialog(BuildContext context, String id, String currentName) {
     final colors = NenTheme.of(context);
     final controller = TextEditingController(text: currentName);
-    showDialog(
+    final dialog = showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: colors.surfaceElevated,
@@ -244,6 +245,7 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
         ],
       ),
     );
+    dialog.then((_) => controller.dispose());
   }
 
   void _openPlaylistDetail(BuildContext context, Playlist playlist) {
@@ -350,11 +352,13 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
             year: song['year'] as int? ?? 0,
           );
         });
-        for (final song in songs) {
-          await ref
-              .read(playlistsProvider.notifier)
-              .addSong(createdPlaylist.id, song);
-        }
+        await Future.wait(
+          songs.map(
+            (song) => ref
+                .read(playlistsProvider.notifier)
+                .addSong(createdPlaylist.id, song),
+          ),
+        );
         count++;
       }
       await ref.read(playlistsProvider.notifier).load();

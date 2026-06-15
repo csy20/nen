@@ -1,7 +1,7 @@
 name: nen
 description: "Nen — Offline music player with real-time audio visualizer."
 publish_to: 'none'
-version: 1.0.1+3
+version: 1.0.3+5
 
 environment:
   sdk: ^3.11.0
@@ -49,9 +49,6 @@ dependencies:
 
   # Marquee scrolling text widget
   marquee: ^2.2.3
-
-  # Audio waveform recorder/player (FFT bar upgrade path)
-  audio_waveforms: ^1.0.5
 
 dev_dependencies:
   flutter_test:

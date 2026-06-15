@@ -20,6 +20,7 @@ class _FakeAudioRepository implements AudioRepository {
   double speed = 1.0;
   bool crossfadeEnabled = false;
   Duration crossfadeDuration = const Duration(seconds: 3);
+  final List<Song> playedSongs = [];
 
   @override
   Stream<void> get completionStream => _completionController.stream;
@@ -52,7 +53,9 @@ class _FakeAudioRepository implements AudioRepository {
   Future<void> pause() async {}
 
   @override
-  Future<void> play(Song song) async {}
+  Future<void> play(Song song) async {
+    playedSongs.add(song);
+  }
 
   @override
   Future<void> playPreloaded() async {}
@@ -85,6 +88,9 @@ class _FakeAudioRepository implements AudioRepository {
   Future<void> setEqualizerBand(int band, double gain) async {}
 
   @override
+  Future<void> resetEqualizerBands() async {}
+
+  @override
   Future<void> setSpeed(double value) async {
     speed = value;
   }
@@ -96,6 +102,10 @@ class _FakeAudioRepository implements AudioRepository {
 
   @override
   Future<void> stop() async {}
+
+  void emitCompletion() {
+    _completionController.add(null);
+  }
 }
 
 class _FakeSettingsRepository implements SettingsRepository {
@@ -198,6 +208,18 @@ class _FakeSettingsRepository implements SettingsRepository {
   Future<void> setVolume(double value) async {
     volume = value;
   }
+
+  @override
+  Future<bool> getEqualizerActive() async => false;
+
+  @override
+  Future<void> setEqualizerActive(bool value) async {}
+
+  @override
+  Future<List<double>> getEqualizerBands() async => List.filled(8, 1.0);
+
+  @override
+  Future<void> setEqualizerBands(List<double> bands) async {}
 }
 
 const _songA = Song(
@@ -306,6 +328,64 @@ void main() {
         audioHandler.playbackState.value.repeatMode,
         audio_svc.AudioServiceRepeatMode.all,
       );
+      expect(audioHandler.playbackState.value.queueIndex, 1);
+    });
+
+    test('repeat one restarts the current track on completion', () async {
+      final notifier = container.read(playbackProvider.notifier);
+
+      await notifier.playQueue(const [_songA, _songB]);
+      await notifier.cycleRepeat();
+      await Future<void>.delayed(Duration.zero);
+
+      audioRepository.emitCompletion();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      final playback = container.read(playbackProvider);
+      expect(playback.repeatMode, NenRepeatMode.one);
+      expect(playback.queueIndex, 0);
+      expect(playback.currentSong, _songA);
+      expect(playback.position, Duration.zero);
+      expect(audioRepository.playedSongs, [_songA, _songA]);
+      expect(audioHandler.playbackState.value.queueIndex, 0);
+    });
+
+    test('repeat all wraps to the start of the queue on completion', () async {
+      final notifier = container.read(playbackProvider.notifier);
+
+      await notifier.playQueue(const [_songA, _songB], startIndex: 1);
+      await notifier.cycleRepeat();
+      await notifier.cycleRepeat();
+      await Future<void>.delayed(Duration.zero);
+
+      audioRepository.emitCompletion();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      final playback = container.read(playbackProvider);
+      expect(playback.repeatMode, NenRepeatMode.all);
+      expect(playback.queueIndex, 0);
+      expect(playback.currentSong, _songA);
+      expect(audioRepository.playedSongs, [_songB, _songA]);
+      expect(audioHandler.playbackState.value.queueIndex, 0);
+    });
+
+    test('skipToNext bypasses repeat-one completion behavior', () async {
+      final notifier = container.read(playbackProvider.notifier);
+
+      await notifier.playQueue(const [_songA, _songB]);
+      await notifier.cycleRepeat();
+      await Future<void>.delayed(Duration.zero);
+
+      await audioHandler.skipToNext();
+      await Future<void>.delayed(Duration.zero);
+
+      final playback = container.read(playbackProvider);
+      expect(playback.repeatMode, NenRepeatMode.one);
+      expect(playback.queueIndex, 1);
+      expect(playback.currentSong, _songB);
+      expect(audioRepository.playedSongs, [_songA, _songB]);
       expect(audioHandler.playbackState.value.queueIndex, 1);
     });
   });

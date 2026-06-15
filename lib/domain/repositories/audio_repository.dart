@@ -56,6 +56,9 @@ abstract class AudioRepository {
   /// Set a single EQ band gain (band 1-8, value 0.0–4.0, default 1.0).
   Future<void> setEqualizerBand(int band, double gain);
 
+  /// Reset all 8 EQ bands to default (1.0) in a single batch.
+  Future<void> resetEqualizerBands();
+
   /// Get all 8 EQ band gains.
   List<double> getEqualizerBands();
 

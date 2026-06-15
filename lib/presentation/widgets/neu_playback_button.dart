@@ -5,16 +5,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/providers.dart';
 import '../theme/nen_theme.dart';
 
-/// Neumorphic playback control button with physics-based spring animations
-/// and smooth icon morphing for play/pause.
 class NeuPlaybackButton extends ConsumerStatefulWidget {
   final IconData icon;
   final double size;
   final VoidCallback onPressed;
   final bool isPrimary;
 
-  /// If true, renders an AnimatedIcon for play/pause morphing instead of
-  /// a static icon. [isPlaying] must be provided when this is true.
   final bool animatePlayPause;
   final bool isPlaying;
 
@@ -36,11 +32,8 @@ class _NeuPlaybackButtonState extends ConsumerState<NeuPlaybackButton>
     with TickerProviderStateMixin {
   bool _isPressed = false;
 
-  // Physics-based spring animation
   late AnimationController _springController;
   late Animation<double> _springScale;
-
-  // Play/pause icon morph controller
   late AnimationController _iconMorphController;
 
   @override
@@ -100,6 +93,8 @@ class _NeuPlaybackButtonState extends ConsumerState<NeuPlaybackButton>
     final settings = ref.watch(settingsProvider);
     final useAnimation = !settings.reduceMotion;
     final colors = NenTheme.of(context);
+    final theme = Theme.of(context);
+    final primaryColor = theme.colorScheme.primary;
 
     return GestureDetector(
       onTapDown: _onTapDown,
@@ -117,9 +112,7 @@ class _NeuPlaybackButtonState extends ConsumerState<NeuPlaybackButton>
               decoration: neumorphicDecoration(
                 isPressed: _isPressed,
                 baseColor: widget.isPrimary
-                    ? Theme.of(
-                        context,
-                      ).colorScheme.primary.withValues(alpha: 0.15)
+                    ? primaryColor.withValues(alpha: 0.15)
                     : colors.surface,
               ),
               child: Center(
@@ -128,14 +121,14 @@ class _NeuPlaybackButtonState extends ConsumerState<NeuPlaybackButton>
                         icon: AnimatedIcons.play_pause,
                         progress: _iconMorphController,
                         color: widget.isPrimary
-                            ? Theme.of(context).colorScheme.primary
+                            ? primaryColor
                             : colors.textPrimary,
                         size: widget.size * 0.5,
                       )
                     : Icon(
                         widget.icon,
                         color: widget.isPrimary
-                            ? Theme.of(context).colorScheme.primary
+                            ? primaryColor
                             : colors.textPrimary,
                         size: widget.size * 0.5,
                       ),
@@ -148,18 +141,16 @@ class _NeuPlaybackButtonState extends ConsumerState<NeuPlaybackButton>
   }
 }
 
-/// Custom spring curve for physics-based button animations.
 class _SpringCurve extends Curve {
   const _SpringCurve();
 
+  static final _simulation = SpringSimulation(
+    const SpringDescription(mass: 1, stiffness: 300, damping: 14),
+    0,
+    1,
+    0,
+  );
+
   @override
-  double transformInternal(double t) {
-    final simulation = SpringSimulation(
-      const SpringDescription(mass: 1, stiffness: 300, damping: 14),
-      0,
-      1,
-      0,
-    );
-    return simulation.x(t);
-  }
+  double transformInternal(double t) => _simulation.x(t);
 }

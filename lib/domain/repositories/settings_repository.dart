@@ -30,4 +30,10 @@ abstract class SettingsRepository {
   // Recently played
   Future<List<int>> getRecentSongIds();
   Future<void> setRecentSongIds(List<int> ids);
+
+  // Equalizer
+  Future<bool> getEqualizerActive();
+  Future<void> setEqualizerActive(bool value);
+  Future<List<double>> getEqualizerBands();
+  Future<void> setEqualizerBands(List<double> bands);
 }

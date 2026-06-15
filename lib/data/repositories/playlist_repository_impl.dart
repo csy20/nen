@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:path/path.dart' as p;
@@ -8,7 +9,6 @@ import 'package:uuid/uuid.dart';
 import '../../domain/entities/entities.dart';
 import '../../domain/repositories/playlist_repository.dart';
 
-/// Implementation of [PlaylistRepository] backed by SQLite.
 class PlaylistRepositoryImpl implements PlaylistRepository {
   static const _databaseName = 'nen_playlists.db';
   static const _databaseVersion = 1;
@@ -17,14 +17,24 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
 
   final Uuid _uuid = const Uuid();
   Database? _database;
+  Future<void>? _dbInitFuture;
+  SharedPreferences? _cachedPrefs;
 
-  Future<SharedPreferences> get _prefs => SharedPreferences.getInstance();
+  Future<SharedPreferences> get _prefs async {
+    _cachedPrefs ??= await SharedPreferences.getInstance();
+    return _cachedPrefs!;
+  }
 
   Future<Database> get _db async {
     if (_database != null) {
       return _database!;
     }
+    _dbInitFuture ??= _initDatabase();
+    await _dbInitFuture;
+    return _database!;
+  }
 
+  Future<void> _initDatabase() async {
     final databasesPath = await getDatabasesPath();
     final databasePath = p.join(databasesPath, _databaseName);
     _database = await openDatabase(
@@ -56,7 +66,6 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
         ''');
       },
     );
-    return _database!;
   }
 
   @override
@@ -272,7 +281,7 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
       limit: 1,
     );
     if (rows.isEmpty) {
-      throw Exception('Playlist not found');
+      throw PlaylistNotFoundException(playlistId);
     }
     return _mapPlaylist(db, rows.first);
   }
@@ -297,15 +306,15 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
   }
 
   Song _mapSongRow(Map<String, Object?> row) => Song(
-    id: row['song_id']! as int,
-    title: row['title']! as String,
-    artist: row['artist']! as String,
-    album: row['album']! as String,
-    albumId: row['album_id']! as int,
-    duration: Duration(milliseconds: row['duration_ms']! as int),
-    filePath: row['file_path']! as String,
-    trackNumber: row['track_number']! as int,
-    year: row['year']! as int,
+    id: (row['song_id'] as int?) ?? 0,
+    title: (row['title'] as String?) ?? '',
+    artist: (row['artist'] as String?) ?? 'Unknown Artist',
+    album: (row['album'] as String?) ?? 'Unknown Album',
+    albumId: (row['album_id'] as int?) ?? 0,
+    duration: Duration(milliseconds: (row['duration_ms'] as int?) ?? 0),
+    filePath: (row['file_path'] as String?) ?? '',
+    trackNumber: (row['track_number'] as int?) ?? 0,
+    year: (row['year'] as int?) ?? 0,
   );
 
   Playlist _decode(String raw) {

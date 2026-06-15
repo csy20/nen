@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -213,8 +215,6 @@ class SleepTimerState {
 class SleepTimerNotifier extends StateNotifier<SleepTimerState> {
   SleepTimerNotifier() : super(const SleepTimerState());
 
-  // ignore: unused_field
-  Future<void>? _timerFuture;
   bool _cancelled = false;
 
   void start(Duration duration, VoidCallback onExpired) {
@@ -222,7 +222,7 @@ class SleepTimerNotifier extends StateNotifier<SleepTimerState> {
     _cancelled = false;
     state = SleepTimerState(remaining: duration, isActive: true);
 
-    _timerFuture = _tick(duration, onExpired);
+    unawaited(_tick(duration, onExpired));
   }
 
   Future<void> _tick(Duration total, VoidCallback onExpired) async {

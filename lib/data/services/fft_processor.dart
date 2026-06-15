@@ -58,6 +58,7 @@ class FFTProcessor {
   /// FFT magnitudes from SoLoud are typically in 0.0–1.0 range already,
   /// but we apply a gentle boost and clamp for safety.
   static double _smoothClamp(double value) {
+    if (value.isNaN || value.isInfinite) return 0.0;
     return (value * 2.5).clamp(0.0, 1.0);
   }
 }

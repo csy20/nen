@@ -9,9 +9,7 @@ import '../../data/services/nen_audio_handler.dart';
 import 'di_providers.dart';
 import 'settings_provider.dart';
 
-NenRepeatMode _toNenRepeatMode(
-  audio_svc.AudioServiceRepeatMode repeatMode,
-) {
+NenRepeatMode _toNenRepeatMode(audio_svc.AudioServiceRepeatMode repeatMode) {
   switch (repeatMode) {
     case audio_svc.AudioServiceRepeatMode.none:
       return NenRepeatMode.off;
@@ -45,9 +43,13 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
   StreamSubscription<audio_svc.PlaybackState>? _pbStateSub;
   StreamSubscription<audio_svc.AudioServiceRepeatMode>? _repeatModeSub;
   int? _crossfadeTriggeredSongId;
+  bool _completionTransitionInFlight = false;
+  Timer? _persistDebounce;
 
   PlaybackNotifier(this._handler, this._ref) : super(const PlaybackState()) {
-    _handler.onCompletion = _onSongComplete;
+    _handler.onCompletion = _handleSongCompletion;
+    _handler.onSkipToNext = next;
+    _handler.onSkipToPrevious = previous;
 
     _pbStateSub = _handler.playbackState.listen((ps) {
       state = state.copyWith(
@@ -62,10 +64,6 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
     });
 
     Future.microtask(_loadPersistedPlaybackSettings);
-  }
-
-  Future<void> initEngine() async {
-    // Engine is already initialized via NenAudioHandler.init() in main()
   }
 
   Future<void> playQueue(List<Song> songs, {int startIndex = 0}) async {
@@ -188,7 +186,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
 
     int prevIndex = state.queueIndex - 1;
     if (prevIndex < 0) {
-      if (state.repeatMode == NenRepeatMode.all) {
+      if (state.repeatMode == NenRepeatMode.all && state.queue.isNotEmpty) {
         prevIndex = state.queue.length - 1;
       } else {
         prevIndex = 0;
@@ -234,21 +232,39 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
   Future<void> cycleRepeat() async {
     final modes = NenRepeatMode.values;
     final nextIdx = (state.repeatMode.index + 1) % modes.length;
-    await _handler.setRepeatMode(_toAudioServiceRepeatMode(modes[nextIdx]));
+    final nextMode = modes[nextIdx];
+    state = state.copyWith(repeatMode: nextMode);
+    await _handler.setRepeatMode(_toAudioServiceRepeatMode(nextMode));
   }
 
   Future<void> setVolume(double volume) async {
-    final clamped = volume.clamp(0.0, 1.0).toDouble();
+    final clamped = volume.clamp(0.0, 1.0);
     await _handler.setVolume(clamped);
     state = state.copyWith(volume: clamped);
-    await _ref.read(settingsRepositoryProvider).setVolume(clamped);
+    _persistDebounce?.cancel();
+    _persistDebounce = Timer(const Duration(milliseconds: 300), () {
+      unawaited(
+        _ref
+            .read(settingsRepositoryProvider)
+            .setVolume(clamped)
+            .catchError((_) {}),
+      );
+    });
   }
 
   Future<void> setSpeed(double speed) async {
-    final clamped = speed.clamp(0.5, 2.0).toDouble();
+    final clamped = speed.clamp(0.5, 2.0);
     await _handler.setSpeed(clamped);
     state = state.copyWith(speed: clamped);
-    await _ref.read(settingsRepositoryProvider).setPlaybackSpeed(clamped);
+    _persistDebounce?.cancel();
+    _persistDebounce = Timer(const Duration(milliseconds: 300), () {
+      unawaited(
+        _ref
+            .read(settingsRepositoryProvider)
+            .setPlaybackSpeed(clamped)
+            .catchError((_) {}),
+      );
+    });
   }
 
   // ── Queue Management ──────────────────────────────────────────────
@@ -343,15 +359,44 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
       }
     }
     // Pre-load next track in background
-    _handler.audioRepo.preload(state.queue[nextIndex]);
+    unawaited(
+      _handler.audioRepo.preload(state.queue[nextIndex]).catchError((_) {}),
+    );
   }
 
-  void _onSongComplete() {
-    if (state.repeatMode == NenRepeatMode.one) {
-      _handler.seek(Duration.zero);
-      _handler.play();
-    } else {
-      next();
+  Future<void> _handleSongCompletion() async {
+    if (_completionTransitionInFlight) return;
+    _completionTransitionInFlight = true;
+
+    try {
+      final currentSong = state.currentSong;
+      if (state.repeatMode == NenRepeatMode.one) {
+        if (currentSong != null) {
+          _crossfadeTriggeredSongId = null;
+          state = state.copyWith(position: Duration.zero, isPlaying: true);
+          try {
+            await _handler.playSong(
+              currentSong,
+              queue: state.queue,
+              queueIndex: state.queueIndex,
+            );
+            _updateDuration(currentSong);
+          } catch (e) {
+            _emitError('Failed to repeat track');
+            state = state.copyWith(isPlaying: false);
+          }
+          return;
+        }
+
+        await _handler.seek(Duration.zero);
+        await _handler.play();
+        state = state.copyWith(position: Duration.zero, isPlaying: true);
+        return;
+      }
+
+      await next();
+    } finally {
+      _completionTransitionInFlight = false;
     }
   }
 
@@ -379,6 +424,21 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
     await _handler.setSpeed(speed);
     await _handler.setCrossfadeEnabled(crossfadeEnabled);
     await _handler.setCrossfadeDuration(Duration(seconds: crossfadeDuration));
+
+    final recentIds = await settingsRepo.getRecentSongIds();
+    if (recentIds.isNotEmpty) {
+      final lastId = recentIds.first;
+      final songs = await _ref.read(getSongsUseCaseProvider)();
+      final lastSong = songs.where((s) => s.id == lastId).firstOrNull;
+
+      if (lastSong != null && state.currentSong == null && !state.isPlaying) {
+        state = state.copyWith(
+          currentSong: lastSong,
+          queue: [lastSong],
+          queueIndex: 0,
+        );
+      }
+    }
   }
 
   int _pickRandomQueueIndex() {
@@ -419,7 +479,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
     if (!hasNext) return;
 
     _crossfadeTriggeredSongId = currentSong.id;
-    unawaited(next());
+    unawaited(next().catchError((_) {}));
   }
 
   void _emitError(String message) {
@@ -428,8 +488,12 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
 
   @override
   void dispose() {
+    _handler.onCompletion = null;
+    _handler.onSkipToNext = null;
+    _handler.onSkipToPrevious = null;
     _pbStateSub?.cancel();
     _repeatModeSub?.cancel();
+    _persistDebounce?.cancel();
     super.dispose();
   }
 }

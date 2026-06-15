@@ -1,29 +1,27 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart' as as_lib;
-import 'package:flutter/foundation.dart';
 
 import '../../domain/entities/entities.dart';
 import '../../domain/repositories/audio_repository.dart';
 
-/// Background audio handler that bridges audio_service (lock screen / notification
-/// controls) with the flutter_soloud AudioRepository.
 class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
   final AudioRepository _audioRepo;
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<void>? _completionSub;
 
   bool _playing = false;
+  final List<void> _pendingCompletions = [];
 
-  /// Callback fired when completion happens so PlaybackNotifier can call next().
-  VoidCallback? onCompletion;
+  Future<void> Function()? onCompletion;
+  Future<void> Function()? onSkipToNext;
+  Future<void> Function()? onSkipToPrevious;
 
   NenAudioHandler(this._audioRepo);
 
   Stream<as_lib.AudioServiceRepeatMode> get repeatModeStream =>
       playbackState.map((state) => state.repeatMode).distinct();
 
-  /// Initialize and wire up the audio engine's streams.
   Future<void> init() async {
     await _audioRepo.initialize();
 
@@ -32,11 +30,25 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
     });
 
     _completionSub = _audioRepo.completionStream.listen((_) {
-      onCompletion?.call();
+      final callback = onCompletion;
+      if (callback != null) {
+        unawaited(callback());
+      } else {
+        _pendingCompletions.add(null);
+      }
     });
+
+    while (_pendingCompletions.isNotEmpty) {
+      final callback = onCompletion;
+      if (callback != null) {
+        _pendingCompletions.clear();
+        unawaited(callback());
+      } else {
+        break;
+      }
+    }
   }
 
-  /// Start playing a song and update media session metadata.
   Future<void> playSong(
     Song song, {
     List<Song>? queue,
@@ -46,7 +58,6 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
 
     await _audioRepo.play(song);
 
-    // Update media item for lock screen
     mediaItem.add(
       as_lib.MediaItem(
         id: song.filePath,
@@ -79,7 +90,6 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
     _playing = false;
     await _audioRepo.stop();
     _broadcastState(position: Duration.zero);
-    // Don't call super.stop() — keep service alive
   }
 
   @override
@@ -95,13 +105,19 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
 
   @override
   Future<void> skipToNext() async {
-    // Delegate to PlaybackNotifier via callback
-    onCompletion?.call();
+    final callback = onSkipToNext;
+    if (callback != null) {
+      await callback();
+    }
   }
 
   @override
   Future<void> skipToPrevious() async {
-    // Re-seek to start if within 3s, otherwise handled by notifier
+    final callback = onSkipToPrevious;
+    if (callback != null) {
+      await callback();
+      return;
+    }
     await seek(Duration.zero);
   }
 
@@ -143,7 +159,6 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
     );
   }
 
-  /// Expose for FFT access.
   AudioRepository get audioRepo => _audioRepo;
 
   Future<void> teardown() async {
@@ -153,7 +168,6 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
   }
 }
 
-/// Initialize the audio handler as a singleton.
 Future<NenAudioHandler> initAudioHandler(AudioRepository audioRepo) async {
   final handler = await as_lib.AudioService.init(
     builder: () => NenAudioHandler(audioRepo),

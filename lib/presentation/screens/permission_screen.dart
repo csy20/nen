@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../providers/providers.dart';
 import '../theme/nen_theme.dart';
-import 'library_screen.dart';
+import 'home_screen.dart';
 
 /// Splash / permission gate screen.
 class PermissionScreen extends ConsumerStatefulWidget {
@@ -14,8 +15,11 @@ class PermissionScreen extends ConsumerStatefulWidget {
 }
 
 class _PermissionScreenState extends ConsumerState<PermissionScreen> {
+  static const _permissionTimeout = Duration(seconds: 8);
+
   bool _loading = true;
   bool _granted = false;
+  String? _errorMessage;
 
   @override
   void initState() {
@@ -24,39 +28,75 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
   }
 
   Future<void> _checkPermission() async {
-    final service = ref.read(permissionServiceProvider);
-    final granted = await service.hasAudioPermission();
-    if (granted) {
-      _onGranted();
-    } else {
+    try {
+      final service = ref.read(permissionServiceProvider);
+      final granted = await service.hasAudioPermission().timeout(
+        _permissionTimeout,
+      );
+      if (granted) {
+        _onGranted();
+        return;
+      }
+      if (!mounted) return;
       setState(() {
         _loading = false;
         _granted = false;
+        _errorMessage = null;
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _granted = false;
+        _errorMessage =
+            'Unable to check media permission right now. Please try again.';
       });
     }
   }
 
   Future<void> _requestPermission() async {
     setState(() => _loading = true);
-    final service = ref.read(permissionServiceProvider);
-    final granted = await service.requestAudioPermission();
-    if (granted) {
-      _onGranted();
-    } else {
+    try {
+      final service = ref.read(permissionServiceProvider);
+      final granted = await service.requestAudioPermission().timeout(
+        _permissionTimeout,
+      );
+      if (granted) {
+        _onGranted();
+        return;
+      }
+      if (!mounted) return;
       setState(() {
         _loading = false;
         _granted = false;
+        _errorMessage =
+            'Permission not granted. You can grant it in app settings.';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _granted = false;
+        _errorMessage = 'Permission request timed out. Please try again.';
       });
     }
   }
 
   void _onGranted() {
-    // Audio engine is already initialized in main() via NenAudioHandler
-    if (mounted) {
+    // Audio engine is already initialized in main() via NenAudioHandler.
+    // Schedule navigation after frame to avoid lifecycle race conditions.
+    if (!mounted) return;
+    setState(() {
+      _granted = true;
+      _loading = false;
+      _errorMessage = null;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
           pageBuilder: (context, animation, secondaryAnimation) =>
-              const LibraryScreen(),
+              const HomeScreen(),
           transitionsBuilder: (context, animation, secondaryAnimation, child) =>
               FadeTransition(
                 opacity: CurvedAnimation(
@@ -68,7 +108,7 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
           transitionDuration: const Duration(milliseconds: 500),
         ),
       );
-    }
+    });
   }
 
   @override
@@ -154,6 +194,25 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
                         ),
                       ),
                     ),
+                    if (_errorMessage != null) ...[
+                      const SizedBox(height: 12),
+                      Text(
+                        _errorMessage!,
+                        textAlign: TextAlign.start,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.error,
+                          fontSize: 12,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      SizedBox(
+                        width: double.infinity,
+                        child: TextButton(
+                          onPressed: openAppSettings,
+                          child: const Text('Open App Settings'),
+                        ),
+                      ),
+                    ],
                     if (!_granted) ...[
                       const SizedBox(height: 12),
                       Text(

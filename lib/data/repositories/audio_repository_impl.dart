@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
 
 import '../../domain/entities/entities.dart';
@@ -30,6 +31,7 @@ class AudioRepositoryImpl implements AudioRepository {
 
   bool _initialized = false;
   bool _completionFired = false;
+  bool _transitionInProgress = false;
   Duration _lastPosition = Duration.zero;
   double _volume = 1.0;
   double _speed = 1.0;
@@ -98,7 +100,9 @@ class AudioRepositoryImpl implements AudioRepository {
     for (final handle in _allActiveHandles()) {
       try {
         _soloud.setPause(handle, true);
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('pause error: $e');
+      }
     }
   }
 
@@ -107,7 +111,9 @@ class AudioRepositoryImpl implements AudioRepository {
     for (final handle in _allActiveHandles()) {
       try {
         _soloud.setPause(handle, false);
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('resume error: $e');
+      }
     }
   }
 
@@ -121,16 +127,16 @@ class AudioRepositoryImpl implements AudioRepository {
 
   @override
   Future<void> seek(Duration position) async {
-    if (_currentHandle != null) {
-      _soloud.seek(_currentHandle!, position);
-      _lastPosition = position;
-      _positionController.add(position);
-    }
+    final handle = _currentHandle;
+    if (handle == null) return;
+    _soloud.seek(handle, position);
+    _lastPosition = position;
+    _positionController.add(position);
   }
 
   @override
   Future<void> setVolume(double volume) async {
-    _volume = volume.clamp(0.0, 1.0).toDouble();
+    _volume = volume.clamp(0.0, 1.0);
     if (_currentHandle != null) {
       _soloud.setVolume(_currentHandle!, _volume);
     }
@@ -144,8 +150,10 @@ class AudioRepositoryImpl implements AudioRepository {
 
   @override
   List<double> getFFTData() {
-    _fillFftBuffer(0.0);
-    if (!_initialized || _audioData == null) return _fftBuffer;
+    if (!_initialized || _audioData == null) {
+      _fillFftBuffer(0.0);
+      return _fftBuffer;
+    }
 
     try {
       _audioData!.updateSamples();
@@ -156,7 +164,11 @@ class AudioRepositoryImpl implements AudioRepository {
       for (var i = 0; i < fftLength; i++) {
         _fftBuffer[i] = raw[i].toDouble();
       }
-    } catch (_) {
+      for (var i = fftLength; i < _fftBuffer.length; i++) {
+        _fftBuffer[i] = 0.0;
+      }
+    } catch (e) {
+      debugPrint('FFT data error: $e');
       _fillFftBuffer(0.0);
     }
 
@@ -165,7 +177,7 @@ class AudioRepositoryImpl implements AudioRepository {
 
   @override
   Future<void> setSpeed(double speed) async {
-    _speed = speed.clamp(0.5, 2.0).toDouble();
+    _speed = speed.clamp(0.5, 2.0);
     if (_currentHandle != null) {
       _soloud.setRelativePlaySpeed(_currentHandle!, _speed);
     }
@@ -203,7 +215,7 @@ class AudioRepositoryImpl implements AudioRepository {
   @override
   Future<void> setEqualizerBand(int band, double gain) async {
     if (band < 1 || band > 8) return;
-    _eqBands[band - 1] = gain.clamp(0.0, 4.0).toDouble();
+    _eqBands[band - 1] = gain.clamp(0.0, 4.0);
     if (_eqActive && _initialized) {
       _setEqBandInternal(band - 1, _eqBands[band - 1]);
     }
@@ -232,45 +244,65 @@ class AudioRepositoryImpl implements AudioRepository {
   }
 
   @override
+  Future<void> resetEqualizerBands() async {
+    for (int i = 0; i < 8; i++) {
+      _eqBands[i] = 1.0;
+    }
+    if (_eqActive && _initialized) {
+      for (int i = 0; i < 8; i++) {
+        _setEqBandInternal(i, 1.0);
+      }
+    }
+  }
+
+  @override
   List<double> getEqualizerBands() => List.unmodifiable(_eqBands);
 
   Future<void> _playSource(AudioSource nextSource) async {
-    final canCrossfade = _shouldCrossfadeCurrentTrack();
-    final previousHandle = _currentHandle;
-    final previousSource = _currentSource;
+    if (_transitionInProgress) return;
+    _transitionInProgress = true;
+    try {
+      final canCrossfade = _shouldCrossfadeCurrentTrack();
+      final previousHandle = _currentHandle;
+      final previousSource = _currentSource;
 
-    if (canCrossfade) {
-      final fadeDuration = _crossfadeDuration;
-      final nextHandle = await _soloud.play(nextSource, volume: 0.0);
-      _currentHandle = nextHandle;
+      if (canCrossfade) {
+        final fadeDuration = _crossfadeDuration;
+        final nextHandle = await _soloud.play(nextSource, volume: 0.0);
+        _currentHandle = nextHandle;
+        _currentSource = nextSource;
+        _completionFired = false;
+        _lastPosition = Duration.zero;
+        _applyCurrentHandleSpeed();
+        _startPositionTracking();
+        _soloud.fadeVolume(nextHandle, _volume, fadeDuration);
+
+        if (previousHandle != null && previousSource != null) {
+          final retiringTrack = _RetiringTrack(
+            handle: previousHandle,
+            source: previousSource,
+          );
+          _retiringTracks.add(retiringTrack);
+          try {
+            _soloud.fadeVolume(retiringTrack.handle, 0.0, fadeDuration);
+          } catch (e) {
+            debugPrint('fadeVolume error: $e');
+          }
+          unawaited(_cleanupRetiringTrack(retiringTrack, fadeDuration));
+        }
+        return;
+      }
+
+      await _stopCurrentTrack();
       _currentSource = nextSource;
+      _currentHandle = await _soloud.play(nextSource, volume: _volume);
       _completionFired = false;
       _lastPosition = Duration.zero;
       _applyCurrentHandleSpeed();
       _startPositionTracking();
-      _soloud.fadeVolume(nextHandle, _volume, fadeDuration);
-
-      if (previousHandle != null && previousSource != null) {
-        final retiringTrack = _RetiringTrack(
-          handle: previousHandle,
-          source: previousSource,
-        );
-        _retiringTracks.add(retiringTrack);
-        try {
-          _soloud.fadeVolume(retiringTrack.handle, 0.0, fadeDuration);
-        } catch (_) {}
-        unawaited(_cleanupRetiringTrack(retiringTrack, fadeDuration));
-      }
-      return;
+    } finally {
+      _transitionInProgress = false;
     }
-
-    await _stopCurrentTrack();
-    _currentSource = nextSource;
-    _currentHandle = await _soloud.play(nextSource, volume: _volume);
-    _completionFired = false;
-    _lastPosition = Duration.zero;
-    _applyCurrentHandleSpeed();
-    _startPositionTracking();
   }
 
   bool _shouldCrossfadeCurrentTrack() {
@@ -324,8 +356,8 @@ class AudioRepositoryImpl implements AudioRepository {
           _completionFired = true;
           _completionController.add(null);
         }
-      } catch (_) {
-        // The handle may have been invalidated after a transition.
+      } catch (e) {
+        debugPrint('position tracking error: $e');
       }
     });
   }
@@ -347,10 +379,14 @@ class AudioRepositoryImpl implements AudioRepository {
 
     try {
       await _soloud.stop(track.handle);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('cleanup stop error: $e');
+    }
     try {
       await _soloud.disposeSource(track.source);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('cleanup dispose error: $e');
+    }
   }
 
   Iterable<SoundHandle> _allActiveHandles() sync* {
@@ -370,10 +406,14 @@ class AudioRepositoryImpl implements AudioRepository {
     for (final track in retiringTracks) {
       try {
         await _soloud.stop(track.handle);
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('stopAll retiring track stop error: $e');
+      }
       try {
         await _soloud.disposeSource(track.source);
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('stopAll retiring track dispose error: $e');
+      }
     }
   }
 
@@ -386,12 +426,16 @@ class AudioRepositoryImpl implements AudioRepository {
     if (currentHandle != null) {
       try {
         await _soloud.stop(currentHandle);
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('stopCurrent stop error: $e');
+      }
     }
     if (currentSource != null) {
       try {
         await _soloud.disposeSource(currentSource);
-      } catch (_) {}
+      } catch (e) {
+        debugPrint('stopCurrent dispose error: $e');
+      }
     }
   }
 
@@ -399,7 +443,9 @@ class AudioRepositoryImpl implements AudioRepository {
     if (_preloadedSource == null) return;
     try {
       await _soloud.disposeSource(_preloadedSource!);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('disposePreloadedSource error: $e');
+    }
     _preloadedSource = null;
     _preloadedFilePath = null;
   }

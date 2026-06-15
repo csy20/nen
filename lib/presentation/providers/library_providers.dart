@@ -8,6 +8,7 @@ import 'package:palette_generator/palette_generator.dart';
 import '../../domain/entities/entities.dart';
 import '../theme/nen_theme.dart';
 import 'di_providers.dart';
+import 'playback_provider.dart';
 
 class LibraryRefreshNotifier extends StateNotifier<int> {
   final Ref _ref;
@@ -26,6 +27,12 @@ final libraryRefreshProvider =
     StateNotifierProvider<LibraryRefreshNotifier, int>((ref) {
       return LibraryRefreshNotifier(ref);
     });
+
+/// Current playing song ID — extracted from playbackProvider to minimize
+/// rebuilds in SongTile (watching a single int vs the full PlaybackState).
+final currentSongIdProvider = Provider<int?>((ref) {
+  return ref.watch(playbackProvider.select((s) => s.currentSong?.id));
+});
 
 // ── Songs ───────────────────────────────────────────────────────────
 

@@ -1,5 +1,14 @@
 import '../entities/entities.dart';
 
+/// Thrown when a playlist is not found.
+class PlaylistNotFoundException implements Exception {
+  final String playlistId;
+  const PlaylistNotFoundException(this.playlistId);
+
+  @override
+  String toString() => 'Playlist not found: $playlistId';
+}
+
 /// Contract for playlist persistence.
 abstract class PlaylistRepository {
   Future<List<Playlist>> getPlaylists();

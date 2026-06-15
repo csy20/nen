@@ -17,30 +17,34 @@ class PlaylistNotifier extends StateNotifier<List<Playlist>> {
     final playlist = await _ref
         .read(managePlaylistUseCaseProvider)
         .create(name);
-    await load();
+    state = [...state, playlist];
     return playlist;
   }
 
   Future<void> delete(String id) async {
     await _ref.read(managePlaylistUseCaseProvider).delete(id);
-    await load();
+    state = state.where((p) => p.id != id).toList();
   }
 
   Future<void> addSong(String playlistId, Song song) async {
-    await _ref.read(managePlaylistUseCaseProvider).addSong(playlistId, song);
-    await load();
+    final updated = await _ref
+        .read(managePlaylistUseCaseProvider)
+        .addSong(playlistId, song);
+    state = state.map((p) => p.id == playlistId ? updated : p).toList();
   }
 
   Future<void> removeSong(String playlistId, int songId) async {
-    await _ref
+    final updated = await _ref
         .read(managePlaylistUseCaseProvider)
         .removeSong(playlistId, songId);
-    await load();
+    state = state.map((p) => p.id == playlistId ? updated : p).toList();
   }
 
   Future<void> rename(String id, String newName) async {
     await _ref.read(managePlaylistUseCaseProvider).rename(id, newName);
-    await load();
+    state = state
+        .map((p) => p.id == id ? p.copyWith(name: newName) : p)
+        .toList();
   }
 }
 

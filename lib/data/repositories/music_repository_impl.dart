@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:typed_data';
 
 import 'package:on_audio_query/on_audio_query.dart';
@@ -5,7 +6,6 @@ import 'package:on_audio_query/on_audio_query.dart';
 import '../../domain/entities/entities.dart';
 import '../../domain/repositories/music_repository.dart';
 
-/// Folders to exclude from song queries (call & voice recordings).
 const _excludedPathSegments = [
   '/Call/',
   '/CallRecordings/',
@@ -19,23 +19,23 @@ const _excludedPathSegments = [
   '/Alarms/',
 ];
 
-/// Minimum duration (in ms) to consider a file as music.
-const _minDurationMs = 30000; // 30 seconds
+const _minDurationMs = 30000;
 
-/// Implementation of [MusicRepository] using on_audio_query.
 class MusicRepositoryImpl implements MusicRepository {
   final OnAudioQuery _audioQuery;
-  final Map<int, Uint8List?> _albumArtCache = <int, Uint8List?>{};
+  final LinkedHashMap<int, Uint8List?> _albumArtCache =
+      LinkedHashMap<int, Uint8List?>();
+  static const int _maxAlbumArtCacheSize = 200;
   final Map<int, Future<Uint8List?>> _albumArtRequests =
       <int, Future<Uint8List?>>{};
+  List<SongModel>? _songsCache;
+  Future<List<SongModel>>? _songsRequest;
 
   MusicRepositoryImpl({OnAudioQuery? audioQuery})
     : _audioQuery = audioQuery ?? OnAudioQuery();
 
-  /// Returns true if [model] looks like actual music (not a recording/tone).
   bool _isMusicFile(SongModel model) {
     if ((model.duration ?? 0) < _minDurationMs) return false;
-
     final path = model.data.replaceAll('\\', '/');
     for (final segment in _excludedPathSegments) {
       if (path.contains(segment)) return false;
@@ -45,11 +45,7 @@ class MusicRepositoryImpl implements MusicRepository {
 
   @override
   Future<List<Song>> getSongs() async {
-    final models = await _audioQuery.querySongs(
-      sortType: SongSortType.TITLE,
-      orderType: OrderType.ASC_OR_SMALLER,
-      uriType: UriType.EXTERNAL,
-    );
+    final models = await _queryAllSongs();
     return models.where(_isMusicFile).map(_mapSong).toList();
   }
 
@@ -73,11 +69,7 @@ class MusicRepositoryImpl implements MusicRepository {
 
   @override
   Future<List<Song>> getSongsByAlbum(int albumId) async {
-    final models = await _audioQuery.querySongs(
-      sortType: SongSortType.TITLE,
-      orderType: OrderType.ASC_OR_SMALLER,
-      uriType: UriType.EXTERNAL,
-    );
+    final models = await _queryAllSongs();
     return models
         .where((s) => s.albumId == albumId && _isMusicFile(s))
         .map(_mapSong)
@@ -86,11 +78,7 @@ class MusicRepositoryImpl implements MusicRepository {
 
   @override
   Future<List<Song>> getSongsByArtist(int artistId) async {
-    final models = await _audioQuery.querySongs(
-      sortType: SongSortType.TITLE,
-      orderType: OrderType.ASC_OR_SMALLER,
-      uriType: UriType.EXTERNAL,
-    );
+    final models = await _queryAllSongs();
     return models
         .where((s) => s.artistId == artistId && _isMusicFile(s))
         .map(_mapSong)
@@ -100,6 +88,7 @@ class MusicRepositoryImpl implements MusicRepository {
   @override
   Future<Uint8List?> getAlbumArt(int songId) async {
     if (_albumArtCache.containsKey(songId)) {
+      _touchCache(songId);
       return _albumArtCache[songId];
     }
 
@@ -111,7 +100,7 @@ class MusicRepositoryImpl implements MusicRepository {
     final request = _audioQuery
         .queryArtwork(songId, ArtworkType.AUDIO, size: 512, quality: 80)
         .then((art) {
-          _albumArtCache[songId] = art;
+          _addToCache(songId, art);
           _albumArtRequests.remove(songId);
           return art;
         })
@@ -140,7 +129,7 @@ class MusicRepositoryImpl implements MusicRepository {
 
   @override
   Future<List<String>> getFolders() async {
-    final songs = await _audioQuery.querySongs(uriType: UriType.EXTERNAL);
+    final songs = await _queryAllSongs();
     final folders = <String>{};
     for (final s in songs.where(_isMusicFile)) {
       final path = s.data;
@@ -155,7 +144,7 @@ class MusicRepositoryImpl implements MusicRepository {
 
   @override
   Future<List<Song>> getSongsByFolder(String path) async {
-    final songs = await _audioQuery.querySongs(uriType: UriType.EXTERNAL);
+    final songs = await _queryAllSongs();
     return songs
         .where((s) {
           if (!_isMusicFile(s)) return false;
@@ -169,10 +158,55 @@ class MusicRepositoryImpl implements MusicRepository {
 
   @override
   Future<void> rescanMedia() async {
-    // Trigger a media store rescan
+    _songsCache = null;
+    _songsRequest = null;
     _albumArtCache.clear();
     _albumArtRequests.clear();
-    await _audioQuery.scanMedia('/');
+  }
+
+  Future<List<SongModel>> _queryAllSongs() {
+    final cache = _songsCache;
+    if (cache != null) {
+      return Future.value(cache);
+    }
+
+    final inFlight = _songsRequest;
+    if (inFlight != null) {
+      return inFlight;
+    }
+
+    final request = _audioQuery
+        .querySongs(
+          sortType: SongSortType.TITLE,
+          orderType: OrderType.ASC_OR_SMALLER,
+          uriType: UriType.EXTERNAL,
+        )
+        .then((models) {
+          _songsCache = models;
+          _songsRequest = null;
+          return models;
+        })
+        .catchError((error) {
+          _songsRequest = null;
+          throw error;
+        });
+
+    _songsRequest = request;
+    return request;
+  }
+
+  void _addToCache(int songId, Uint8List? art) {
+    if (_albumArtCache.length >= _maxAlbumArtCacheSize) {
+      _albumArtCache.remove(_albumArtCache.keys.first);
+    }
+    _albumArtCache[songId] = art;
+  }
+
+  void _touchCache(int songId) {
+    final art = _albumArtCache.remove(songId);
+    if (art != null || _albumArtCache.containsKey(songId) == false) {
+      _albumArtCache[songId] = art;
+    }
   }
 
   Song _mapSong(SongModel m) => Song(

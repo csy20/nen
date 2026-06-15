@@ -2,10 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'di_providers.dart';
 
-/// EQ state: active flag + 8 band gains (0.0–4.0, default 1.0).
 class EqualizerState {
   final bool isActive;
-  final List<double> bands; // 8 bands
+  final List<double> bands;
 
   const EqualizerState({
     this.isActive = false,
@@ -25,26 +24,42 @@ class EqualizerNotifier extends StateNotifier<EqualizerState> {
 
   EqualizerNotifier(this._ref) : super(const EqualizerState());
 
+  Future<void> load() async {
+    final repo = _ref.read(settingsRepositoryProvider);
+    final active = await repo.getEqualizerActive();
+    final bands = await repo.getEqualizerBands();
+    state = EqualizerState(isActive: active, bands: bands);
+    if (active) {
+      await _ref.read(audioRepositoryProvider).setEqualizerActive(true);
+      for (int i = 1; i <= 8; i++) {
+        await _ref
+            .read(audioRepositoryProvider)
+            .setEqualizerBand(i, bands[i - 1]);
+      }
+    }
+  }
+
   Future<void> toggleActive() async {
     final newActive = !state.isActive;
     state = state.copyWith(isActive: newActive);
     await _ref.read(audioRepositoryProvider).setEqualizerActive(newActive);
+    await _ref.read(settingsRepositoryProvider).setEqualizerActive(newActive);
   }
 
   Future<void> setBand(int band, double gain) async {
+    if (band < 1 || band > 8) return;
     final newBands = List<double>.from(state.bands);
     newBands[band - 1] = gain.clamp(0.0, 4.0);
     state = state.copyWith(bands: newBands);
     await _ref.read(audioRepositoryProvider).setEqualizerBand(band, gain);
+    await _ref.read(settingsRepositoryProvider).setEqualizerBands(newBands);
   }
 
   Future<void> resetBands() async {
     final defaults = List.filled(8, 1.0);
     state = state.copyWith(bands: defaults);
-    final repo = _ref.read(audioRepositoryProvider);
-    for (int i = 1; i <= 8; i++) {
-      await repo.setEqualizerBand(i, 1.0);
-    }
+    await _ref.read(audioRepositoryProvider).resetEqualizerBands();
+    await _ref.read(settingsRepositoryProvider).setEqualizerBands(defaults);
   }
 }
 

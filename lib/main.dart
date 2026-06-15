@@ -8,11 +8,11 @@ import 'data/repositories/audio_repository_impl.dart';
 import 'data/services/nen_audio_handler.dart';
 import 'presentation/providers/di_providers.dart';
 import 'presentation/providers/playback_provider.dart';
+import 'presentation/providers/playlist_provider.dart';
 import 'presentation/providers/settings_provider.dart';
 import 'presentation/screens/permission_screen.dart';
 import 'presentation/theme/nen_theme.dart';
 
-late final NenAudioHandler globalAudioHandler;
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
@@ -44,7 +44,7 @@ void main() async {
 
   // Initialize background audio service
   final audioRepo = AudioRepositoryImpl();
-  globalAudioHandler = await initAudioHandler(audioRepo);
+  final globalAudioHandler = await _initAudioHandlerWithFallback(audioRepo);
 
   runApp(
     ProviderScope(
@@ -57,6 +57,21 @@ void main() async {
   );
 }
 
+Future<NenAudioHandler> _initAudioHandlerWithFallback(
+  AudioRepositoryImpl audioRepo,
+) async {
+  try {
+    return await initAudioHandler(
+      audioRepo,
+    ).timeout(const Duration(seconds: 8));
+  } catch (_) {
+    // If audio_service stalls/fails during startup, keep the app bootable.
+    final handler = NenAudioHandler(audioRepo);
+    await handler.init();
+    return handler;
+  }
+}
+
 class NenApp extends ConsumerStatefulWidget {
   const NenApp({super.key});
 
@@ -67,6 +82,7 @@ class NenApp extends ConsumerStatefulWidget {
 class _NenAppState extends ConsumerState<NenApp> {
   late final ProviderSubscription<PlaybackFeedbackMessage?>
   _feedbackSubscription;
+  bool _lastIsDark = true;
 
   @override
   void initState() {
@@ -76,6 +92,7 @@ class _NenAppState extends ConsumerState<NenApp> {
       ref.read(settingsProvider.notifier).load();
       ref.read(favoritesProvider.notifier).load();
       ref.read(recentlyPlayedProvider.notifier).load();
+      ref.read(playlistsProvider.notifier).load();
     });
     _feedbackSubscription = ref.listenManual(playbackFeedbackProvider, (
       _,
@@ -108,18 +125,21 @@ class _NenAppState extends ConsumerState<NenApp> {
         (settings.themeMode == NenThemeMode.system &&
             WidgetsBinding.instance.platformDispatcher.platformBrightness ==
                 Brightness.dark);
-    SystemChrome.setSystemUIOverlayStyle(
-      SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
-        systemNavigationBarColor: isDark
-            ? NenTheme.trueBlack
-            : NenTheme.backgroundPrimaryLight,
-        systemNavigationBarIconBrightness: isDark
-            ? Brightness.light
-            : Brightness.dark,
-      ),
-    );
+    if (isDark != _lastIsDark) {
+      _lastIsDark = isDark;
+      SystemChrome.setSystemUIOverlayStyle(
+        SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: isDark ? Brightness.light : Brightness.dark,
+          systemNavigationBarColor: isDark
+              ? NenTheme.trueBlack
+              : NenTheme.backgroundPrimaryLight,
+          systemNavigationBarIconBrightness: isDark
+              ? Brightness.light
+              : Brightness.dark,
+        ),
+      );
+    }
 
     return MaterialApp(
       title: 'nen',

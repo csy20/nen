@@ -27,17 +27,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   int _tabIndex = 0;
 
   @override
-  void initState() {
-    super.initState();
-    Future.microtask(() {
-      ref.read(favoritesProvider.notifier).load();
-      ref.read(recentlyPlayedProvider.notifier).load();
-      ref.read(settingsProvider.notifier).load();
-      ref.read(playlistsProvider.notifier).load();
-    });
-  }
-
-  @override
   Widget build(BuildContext context) {
     final colors = NenTheme.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -132,12 +121,12 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   Widget _buildTab() {
     return switch (_tabIndex) {
-      0 => const _SongsTab(),
-      1 => const _FavoritesTab(),
-      2 => const _AlbumsTab(),
-      3 => const _ArtistsTab(),
+      0 => const SongsTab(),
+      1 => const FavoritesTab(),
+      2 => const AlbumsTab(),
+      3 => const ArtistsTab(),
       4 => const PlaylistsScreen(),
-      5 => const _FoldersTab(),
+      5 => const FoldersTab(),
       _ => const SizedBox.shrink(),
     };
   }
@@ -172,8 +161,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
 // ── Songs Tab ───────────────────────────────────────────────────────
 
-class _SongsTab extends ConsumerWidget {
-  const _SongsTab();
+class SongsTab extends ConsumerWidget {
+  const SongsTab({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -331,8 +320,8 @@ class _SongsTab extends ConsumerWidget {
 
 // ── Favorites Tab ──────────────────────────────────────────────────
 
-class _FavoritesTab extends ConsumerWidget {
-  const _FavoritesTab();
+class FavoritesTab extends ConsumerWidget {
+  const FavoritesTab({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -390,57 +379,60 @@ class _FavoritesTab extends ConsumerWidget {
 
         return RefreshIndicator.adaptive(
           onRefresh: () => ref.read(libraryRefreshProvider.notifier).refresh(),
-          child: ListView(
+          child: ListView.builder(
             physics: const AlwaysScrollableScrollPhysics(
               parent: BouncingScrollPhysics(),
             ),
-            children: [
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(
-                  children: [
-                    Text(
-                      '${favSongs.length} favorites',
-                      style: TextStyle(
-                        color: colors.textSecondary,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const Spacer(),
-                    ElevatedButton.icon(
-                      onPressed: () => ref
-                          .read(playbackProvider.notifier)
-                          .playQueue(favSongs),
-                      icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                      label: const Text('Play All'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Theme.of(
-                          context,
-                        ).colorScheme.primary.withValues(alpha: 0.2),
-                        foregroundColor: Theme.of(context).colorScheme.primary,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 8,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
+            itemCount: favSongs.length + 1,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                return Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Row(
+                    children: [
+                      Text(
+                        '${favSongs.length} favorites',
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 12,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              ...List.generate(favSongs.length, (index) {
-                final song = favSongs[index];
-                return SongTile(
-                  song: song,
-                  onTap: () => ref
-                      .read(playbackProvider.notifier)
-                      .playQueue(favSongs, startIndex: index),
-                  onLongPress: () => showSongActionsSheet(context, ref, song),
+                      const Spacer(),
+                      ElevatedButton.icon(
+                        onPressed: () => ref
+                            .read(playbackProvider.notifier)
+                            .playQueue(favSongs),
+                        icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                        label: const Text('Play All'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primary.withValues(alpha: 0.2),
+                          foregroundColor: Theme.of(
+                            context,
+                          ).colorScheme.primary,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 );
-              }),
-            ],
+              }
+              final song = favSongs[index - 1];
+              return SongTile(
+                song: song,
+                onTap: () => ref
+                    .read(playbackProvider.notifier)
+                    .playQueue(favSongs, startIndex: index - 1),
+                onLongPress: () => showSongActionsSheet(context, ref, song),
+              );
+            },
           ),
         );
       },
@@ -456,8 +448,8 @@ class _FavoritesTab extends ConsumerWidget {
 
 // ── Albums Tab ──────────────────────────────────────────────────────
 
-class _AlbumsTab extends ConsumerWidget {
-  const _AlbumsTab();
+class AlbumsTab extends ConsumerWidget {
+  const AlbumsTab({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -571,8 +563,8 @@ class _AlbumsTab extends ConsumerWidget {
 
 // ── Artists Tab ─────────────────────────────────────────────────────
 
-class _ArtistsTab extends ConsumerWidget {
-  const _ArtistsTab();
+class ArtistsTab extends ConsumerWidget {
+  const ArtistsTab({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -654,8 +646,8 @@ class _ArtistsTab extends ConsumerWidget {
 
 // ── Folders Tab ────────────────────────────────────────────────────
 
-class _FoldersTab extends ConsumerWidget {
-  const _FoldersTab();
+class FoldersTab extends ConsumerWidget {
+  const FoldersTab({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -783,59 +775,60 @@ class _FolderDetailScreen extends ConsumerWidget {
               );
             }
 
-            return ListView(
+            return ListView.builder(
               physics: const AlwaysScrollableScrollPhysics(
                 parent: BouncingScrollPhysics(),
               ),
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      Text(
-                        '${songs.length} songs',
-                        style: TextStyle(
-                          color: colors.textTertiary,
-                          fontSize: 12,
-                        ),
-                      ),
-                      const Spacer(),
-                      ElevatedButton.icon(
-                        onPressed: () => ref
-                            .read(playbackProvider.notifier)
-                            .playQueue(songs),
-                        icon: const Icon(Icons.play_arrow_rounded, size: 18),
-                        label: const Text('Play All'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Theme.of(
-                            context,
-                          ).colorScheme.primary.withValues(alpha: 0.2),
-                          foregroundColor: Theme.of(
-                            context,
-                          ).colorScheme.primary,
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 8,
-                          ),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
+              itemCount: songs.length + 1,
+              itemBuilder: (context, index) {
+                if (index == 0) {
+                  return Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Row(
+                      children: [
+                        Text(
+                          '${songs.length} songs',
+                          style: TextStyle(
+                            color: colors.textTertiary,
+                            fontSize: 12,
                           ),
                         ),
-                      ),
-                    ],
-                  ),
-                ),
-                ...List.generate(songs.length, (index) {
-                  final song = songs[index];
-                  return SongTile(
-                    song: song,
-                    onTap: () => ref
-                        .read(playbackProvider.notifier)
-                        .playQueue(songs, startIndex: index),
-                    onLongPress: () => showSongActionsSheet(context, ref, song),
+                        const Spacer(),
+                        ElevatedButton.icon(
+                          onPressed: () => ref
+                              .read(playbackProvider.notifier)
+                              .playQueue(songs),
+                          icon: const Icon(Icons.play_arrow_rounded, size: 18),
+                          label: const Text('Play All'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Theme.of(
+                              context,
+                            ).colorScheme.primary.withValues(alpha: 0.2),
+                            foregroundColor: Theme.of(
+                              context,
+                            ).colorScheme.primary,
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 8,
+                            ),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   );
-                }),
-              ],
+                }
+                final song = songs[index - 1];
+                return SongTile(
+                  song: song,
+                  onTap: () => ref
+                      .read(playbackProvider.notifier)
+                      .playQueue(songs, startIndex: index - 1),
+                  onLongPress: () => showSongActionsSheet(context, ref, song),
+                );
+              },
             );
           },
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -855,6 +848,7 @@ class _FolderDetailScreen extends ConsumerWidget {
 
 class _SongSearchDelegate extends SearchDelegate<String> {
   final WidgetRef ref;
+  bool _querySynced = false;
 
   _SongSearchDelegate(this.ref);
 
@@ -903,7 +897,13 @@ class _SongSearchDelegate extends SearchDelegate<String> {
     return Consumer(
       builder: (context, ref, _) {
         final colors = NenTheme.of(context);
-        ref.read(searchQueryProvider.notifier).setQuery(query);
+        if (!_querySynced && query.isNotEmpty) {
+          _querySynced = true;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _querySynced = false;
+            ref.read(searchQueryProvider.notifier).setQuery(query);
+          });
+        }
         final results = ref.watch(searchResultsProvider);
 
         return results.when(

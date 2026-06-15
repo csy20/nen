@@ -1,10 +1,9 @@
-import 'dart:ui';
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 
 import '../theme/nen_theme.dart';
 
-/// Reusable glassmorphic card with BackdropFilter blur, subtle border,
-/// hover/tap animations, and theme-aware colors. WCAG 2.2 AA compliant.
 class GlassmorphicCard extends StatefulWidget {
   final Widget child;
   final double borderRadius;
@@ -14,7 +13,6 @@ class GlassmorphicCard extends StatefulWidget {
   final EdgeInsets padding;
   final EdgeInsets margin;
   final VoidCallback? onTap;
-  final String? className;
 
   const GlassmorphicCard({
     super.key,
@@ -26,7 +24,6 @@ class GlassmorphicCard extends StatefulWidget {
     this.padding = const EdgeInsets.all(16),
     this.margin = EdgeInsets.zero,
     this.onTap,
-    this.className,
   });
 
   @override
@@ -74,7 +71,6 @@ class _GlassmorphicCardState extends State<GlassmorphicCard> {
                       : const Duration(milliseconds: 200),
                   padding: widget.padding,
                   decoration: BoxDecoration(
-                    // Gradient overlay on hover
                     gradient: _isHovered
                         ? LinearGradient(
                             begin: Alignment.topLeft,
