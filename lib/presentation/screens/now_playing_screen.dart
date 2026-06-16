@@ -795,15 +795,16 @@ class NowPlayingScreen extends ConsumerWidget {
     );
   }
 
+  static const _sleepTimerDurations = [
+    Duration(minutes: 15),
+    Duration(minutes: 30),
+    Duration(minutes: 45),
+    Duration(minutes: 60),
+    Duration(minutes: 90),
+  ];
+
   void _showSleepTimerPicker(BuildContext context, WidgetRef ref) {
     final colors = NenTheme.of(context);
-    const durations = [
-      Duration(minutes: 15),
-      Duration(minutes: 30),
-      Duration(minutes: 45),
-      Duration(minutes: 60),
-      Duration(minutes: 90),
-    ];
 
     showModalBottomSheet<void>(
       context: context,
@@ -830,7 +831,7 @@ class NowPlayingScreen extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 16),
-                  ...durations.map((duration) {
+                  ..._sleepTimerDurations.map((duration) {
                     return ListTile(
                       title: Text(
                         '${duration.inMinutes} minutes',
@@ -901,39 +902,43 @@ class NowPlayingScreen extends ConsumerWidget {
     final controller = TextEditingController();
     final colors = NenTheme.of(context);
 
-    return showDialog<Duration>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          backgroundColor: colors.surfaceElevated,
-          title: const Text('Custom Sleep Timer'),
-          content: TextField(
-            controller: controller,
-            autofocus: true,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(hintText: 'Minutes'),
-            style: TextStyle(color: colors.textPrimary),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancel'),
+    try {
+      return await showDialog<Duration>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            backgroundColor: colors.surfaceElevated,
+            title: const Text('Custom Sleep Timer'),
+            content: TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(hintText: 'Minutes'),
+              style: TextStyle(color: colors.textPrimary),
             ),
-            TextButton(
-              onPressed: () {
-                final minutes = int.tryParse(controller.text.trim());
-                if (minutes == null || minutes <= 0) {
-                  Navigator.pop(dialogContext);
-                  return;
-                }
-                Navigator.pop(dialogContext, Duration(minutes: minutes));
-              },
-              child: const Text('Set'),
-            ),
-          ],
-        );
-      },
-    );
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () {
+                  final minutes = int.tryParse(controller.text.trim());
+                  if (minutes == null || minutes <= 0) {
+                    Navigator.pop(dialogContext);
+                    return;
+                  }
+                  Navigator.pop(dialogContext, Duration(minutes: minutes));
+                },
+                child: const Text('Set'),
+              ),
+            ],
+          );
+        },
+      );
+    } finally {
+      controller.dispose();
+    }
   }
 
   void _startSleepTimer(

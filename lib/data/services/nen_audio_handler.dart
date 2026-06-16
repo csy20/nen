@@ -12,6 +12,7 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
 
   bool _playing = false;
   final List<void> _pendingCompletions = [];
+  static const int _maxPendingCompletions = 16;
 
   Future<void> Function()? onCompletion;
   Future<void> Function()? onSkipToNext;
@@ -23,20 +24,20 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
       playbackState.map((state) => state.repeatMode).distinct();
 
   Future<void> init() async {
-    await _audioRepo.initialize();
+    _completionSub = _audioRepo.completionStream.listen((_) {
+      final callback = onCompletion;
+      if (callback != null) {
+        unawaited(callback());
+      } else if (_pendingCompletions.length < _maxPendingCompletions) {
+        _pendingCompletions.add(null);
+      }
+    });
 
     _positionSub = _audioRepo.positionStream.listen((pos) {
       playbackState.add(playbackState.value.copyWith(updatePosition: pos));
     });
 
-    _completionSub = _audioRepo.completionStream.listen((_) {
-      final callback = onCompletion;
-      if (callback != null) {
-        unawaited(callback());
-      } else {
-        _pendingCompletions.add(null);
-      }
-    });
+    await _audioRepo.initialize();
 
     while (_pendingCompletions.isNotEmpty) {
       final callback = onCompletion;
@@ -54,9 +55,8 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
     List<Song>? queue,
     int queueIndex = 0,
   }) async {
-    _playing = true;
-
     await _audioRepo.play(song);
+    _playing = true;
 
     mediaItem.add(
       as_lib.MediaItem(
@@ -73,22 +73,22 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
 
   @override
   Future<void> play() async {
-    _playing = true;
     await _audioRepo.resume();
+    _playing = true;
     _broadcastState();
   }
 
   @override
   Future<void> pause() async {
-    _playing = false;
     await _audioRepo.pause();
+    _playing = false;
     _broadcastState();
   }
 
   @override
   Future<void> stop() async {
-    _playing = false;
     await _audioRepo.stop();
+    _playing = false;
     _broadcastState(position: Duration.zero);
   }
 

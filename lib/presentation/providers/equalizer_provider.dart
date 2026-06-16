@@ -31,11 +31,10 @@ class EqualizerNotifier extends StateNotifier<EqualizerState> {
     state = EqualizerState(isActive: active, bands: bands);
     if (active) {
       await _ref.read(audioRepositoryProvider).setEqualizerActive(true);
-      for (int i = 1; i <= 8; i++) {
-        await _ref
-            .read(audioRepositoryProvider)
-            .setEqualizerBand(i, bands[i - 1]);
-      }
+      await Future.wait([
+        for (int i = 1; i <= 8; i++)
+          _ref.read(audioRepositoryProvider).setEqualizerBand(i, bands[i - 1]),
+      ]);
     }
   }
 

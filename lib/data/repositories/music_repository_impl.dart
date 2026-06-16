@@ -204,7 +204,7 @@ class MusicRepositoryImpl implements MusicRepository {
 
   void _touchCache(int songId) {
     final art = _albumArtCache.remove(songId);
-    if (art != null || _albumArtCache.containsKey(songId) == false) {
+    if (art != null) {
       _albumArtCache[songId] = art;
     }
   }

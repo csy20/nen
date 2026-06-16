@@ -88,11 +88,17 @@ class _NenAppState extends ConsumerState<NenApp> {
   void initState() {
     super.initState();
     // Load persisted settings (including accent color)
-    Future.microtask(() {
-      ref.read(settingsProvider.notifier).load();
-      ref.read(favoritesProvider.notifier).load();
-      ref.read(recentlyPlayedProvider.notifier).load();
-      ref.read(playlistsProvider.notifier).load();
+    Future.microtask(() async {
+      try {
+        await Future.wait([
+          ref.read(settingsProvider.notifier).load(),
+          ref.read(favoritesProvider.notifier).load(),
+          ref.read(recentlyPlayedProvider.notifier).load(),
+          ref.read(playlistsProvider.notifier).load(),
+        ]);
+      } catch (e) {
+        debugPrint('Failed to load initial data: $e');
+      }
     });
     _feedbackSubscription = ref.listenManual(playbackFeedbackProvider, (
       _,

@@ -78,8 +78,8 @@ void main() {
     float orbPulse = sin(time * 2.0) * 0.01 * (1.0 - uReduceMotion);
     orbRadius += orbPulse;
 
-    float orbGlow = smoothstep(orbRadius + 0.15, orbRadius, dist);
-    float orbCore = smoothstep(orbRadius + 0.02, orbRadius - 0.02, dist);
+    float orbGlow = 1.0 - smoothstep(orbRadius, orbRadius + 0.15, dist);
+    float orbCore = 1.0 - smoothstep(orbRadius - 0.02, orbRadius + 0.02, dist);
 
     vec3 orbColor = uAccentColor * (0.6 + uBass * 0.4);
     vec3 glowColor = uAccentColor * 0.3;
@@ -104,7 +104,7 @@ void main() {
                           * bands[i] * 0.03
                           * (1.0 - uReduceMotion * 0.7);
         float d = abs(dist - bandRadius - angularWarp) - bandWidth;
-        float ring = smoothstep(0.015, 0.0, d);
+        float ring = 1.0 - smoothstep(0.0, 0.015, d);
 
         // Color gradient across bands: from accent to complement
         float hueShift = float(i) / 7.0;
@@ -134,7 +134,7 @@ void main() {
 
             float pDist = length(centered - pPos);
             float pSize = 0.003 + uBrilliance * 0.004 + uPresence * 0.002;
-            particles += smoothstep(pSize + 0.005, pSize, pDist)
+            particles += 1.0 - smoothstep(pSize, pSize + 0.005, pDist)
                        * (0.3 + uBrilliance * 0.7);
         }
     }

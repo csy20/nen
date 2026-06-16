@@ -16,7 +16,7 @@ class NenRadius {
 class NenShadows {
   NenShadows._();
 
-  static List<BoxShadow> get card => [
+  static final List<BoxShadow> card = [
     BoxShadow(
       color: Colors.black.withValues(alpha: 0.12),
       offset: const Offset(0, 4),
@@ -29,7 +29,7 @@ class NenShadows {
     ),
   ];
 
-  static List<BoxShadow> get elevated => [
+  static final List<BoxShadow> elevated = [
     BoxShadow(
       color: const Color(0xFF1F2687).withValues(alpha: 0.25),
       offset: const Offset(0, 8),
@@ -37,7 +37,7 @@ class NenShadows {
     ),
   ];
 
-  static List<BoxShadow> get inner => [
+  static final List<BoxShadow> inner = [
     BoxShadow(
       color: Colors.black.withValues(alpha: 0.06),
       offset: const Offset(0, 2),

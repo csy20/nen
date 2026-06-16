@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:audio_service/audio_service.dart' as audio_svc;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -69,6 +70,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
   Future<void> playQueue(List<Song> songs, {int startIndex = 0}) async {
     if (songs.isEmpty) return;
     final idx = startIndex.clamp(0, songs.length - 1);
+    final prevState = state;
     _crossfadeTriggeredSongId = null;
     state = state.copyWith(
       queue: songs,
@@ -82,11 +84,12 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
       _trackRecentlyPlayed(songs[idx]);
     } catch (e) {
       _emitError('Failed to play: ${songs[idx].title}');
-      state = state.copyWith(isPlaying: false);
+      state = prevState;
     }
   }
 
   Future<void> playSong(Song song) async {
+    final prevState = state;
     _crossfadeTriggeredSongId = null;
     state = state.copyWith(
       queue: [song],
@@ -101,7 +104,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
       _trackRecentlyPlayed(song);
     } catch (e) {
       _emitError('Failed to play: ${song.title}');
-      state = state.copyWith(isPlaying: false);
+      state = prevState;
     }
   }
 
@@ -142,6 +145,11 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
 
     int nextIndex;
     if (state.shuffleMode == ShuffleMode.on) {
+      if (state.repeatMode != NenRepeatMode.all &&
+          state.queueIndex >= state.queue.length - 1) {
+        await stop();
+        return;
+      }
       nextIndex = _pickRandomQueueIndex();
     } else {
       nextIndex = state.queueIndex + 1;
@@ -403,7 +411,9 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
   void _trackRecentlyPlayed(Song song) {
     try {
       _ref.read(recentlyPlayedProvider.notifier).addSong(song.id);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('trackRecentlyPlayed error: $e');
+    }
   }
 
   Future<void> _loadPersistedPlaybackSettings() async {
@@ -452,6 +462,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
   }
 
   void _maybeStartCrossfade(Duration position) {
+    if (_completionTransitionInFlight) return;
     final currentSong = state.currentSong;
     if (!state.crossfadeEnabled ||
         !state.isPlaying ||
@@ -531,7 +542,7 @@ final playbackProvider = StateNotifierProvider<PlaybackNotifier, PlaybackState>(
     final handler = ref.watch(audioHandlerProvider);
     final notifier = PlaybackNotifier(handler, ref);
     ref.listen<SettingsState>(settingsProvider, (_, next) {
-      unawaited(notifier.applySettings(next));
+      unawaited(notifier.applySettings(next).catchError((_) {}));
     });
     return notifier;
   },
