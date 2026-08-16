@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart' as as_lib;
+import 'package:audio_session/audio_session.dart';
+import 'package:flutter/foundation.dart';
 
 import '../../domain/entities/entities.dart';
 import '../../domain/repositories/audio_repository.dart';
@@ -9,8 +11,11 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
   final AudioRepository _audioRepo;
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<void>? _completionSub;
+  StreamSubscription<AudioInterruptionEvent>? _interruptionSub;
+  StreamSubscription<void>? _noisySub;
 
   bool _playing = false;
+  bool _pausedByInterrupt = false;
   final List<void> _pendingCompletions = [];
   static const int _maxPendingCompletions = 16;
 
@@ -38,6 +43,7 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
     });
 
     await _audioRepo.initialize();
+    await _configureAudioSession();
 
     while (_pendingCompletions.isNotEmpty) {
       final callback = onCompletion;
@@ -58,18 +64,25 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
     await _audioRepo.play(song);
     _playing = true;
 
+    final decoderDuration = _audioRepo.currentDuration;
+    final duration = decoderDuration > Duration.zero
+        ? decoderDuration
+        : song.duration;
+
     mediaItem.add(
       as_lib.MediaItem(
-        id: song.filePath,
+        id: song.filePath.isNotEmpty ? song.filePath : song.uri,
         title: song.title,
         artist: song.artist,
         album: song.album,
-        duration: song.duration,
+        duration: duration,
       ),
     );
 
     _broadcastState(position: Duration.zero, queueIndex: queueIndex);
   }
+
+  Duration get currentDuration => _audioRepo.currentDuration;
 
   @override
   Future<void> play() async {
@@ -161,9 +174,46 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
 
   AudioRepository get audioRepo => _audioRepo;
 
+  Future<void> _configureAudioSession() async {
+    try {
+      final session = await AudioSession.instance;
+      await session.configure(const AudioSessionConfiguration.music());
+      _interruptionSub = session.interruptionEventStream.listen((event) {
+        unawaited(_handleInterruption(event));
+      });
+      _noisySub = session.becomingNoisyEventStream.listen((_) {
+        unawaited(pause());
+      });
+    } catch (e) {
+      debugPrint('audio session configure error: $e');
+    }
+  }
+
+  Future<void> _handleInterruption(AudioInterruptionEvent event) async {
+    if (event.begin) {
+      if (event.type == AudioInterruptionType.duck) {
+        return;
+      }
+      if (_playing) {
+        _pausedByInterrupt = true;
+        await pause();
+      }
+      return;
+    }
+
+    if (_pausedByInterrupt && event.type == AudioInterruptionType.pause) {
+      _pausedByInterrupt = false;
+      await play();
+    } else {
+      _pausedByInterrupt = false;
+    }
+  }
+
   Future<void> teardown() async {
     await _positionSub?.cancel();
     await _completionSub?.cancel();
+    await _interruptionSub?.cancel();
+    await _noisySub?.cancel();
     await _audioRepo.dispose();
   }
 }

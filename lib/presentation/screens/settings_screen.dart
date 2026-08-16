@@ -127,7 +127,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               _DividerLine(),
               _CustomListTile(
                 title: 'Audio Engine',
-                subtitle: 'Using flutter_soloud (C++)',
+                subtitle: 'SoLoud + system decoder · all common formats',
                 trailing: Icon(
                   Icons.memory_rounded,
                   color: colors.textSecondary,

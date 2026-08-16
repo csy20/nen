@@ -16,6 +16,8 @@ dependencies:
 
   # Audio engine
   flutter_soloud: ^3.1.5
+  just_audio: ^0.10.4
+  audio_session: ^0.2.2
 
   # Media query (on-device songs, albums, artists)
   on_audio_query: ^2.9.0

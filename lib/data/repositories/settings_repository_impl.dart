@@ -183,7 +183,11 @@ class SettingsRepositoryImpl implements SettingsRepository {
     if (list == null) {
       return List.filled(8, 1.0);
     }
-    return list.map((e) => double.tryParse(e) ?? 1.0).toList();
+    final parsed = list.map((e) => double.tryParse(e) ?? 1.0).toList();
+    if (parsed.length < 8) {
+      parsed.addAll(List.filled(8 - parsed.length, 1.0));
+    }
+    return parsed.take(8).map((gain) => gain.clamp(0.0, 4.0)).toList();
   }
 
   @override

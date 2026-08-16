@@ -3,6 +3,7 @@ import 'dart:typed_data';
 
 import 'package:on_audio_query/on_audio_query.dart';
 
+import '../../domain/audio/audio_format.dart';
 import '../../domain/entities/entities.dart';
 import '../../domain/repositories/music_repository.dart';
 
@@ -209,17 +210,26 @@ class MusicRepositoryImpl implements MusicRepository {
     }
   }
 
-  Song _mapSong(SongModel m) => Song(
-    id: m.id,
-    title: m.title,
-    artist: m.artist ?? 'Unknown Artist',
-    album: m.album ?? 'Unknown Album',
-    albumId: m.albumId ?? 0,
-    duration: Duration(milliseconds: m.duration ?? 0),
-    filePath: m.data,
-    trackNumber: m.track ?? 0,
-    year: 0,
-  );
+  Song _mapSong(SongModel m) {
+    final filePath = (m.getMap['_data'] as String?) ?? '';
+    return Song(
+      id: m.id,
+      title: m.title,
+      artist: m.artist ?? 'Unknown Artist',
+      album: m.album ?? 'Unknown Album',
+      albumId: m.albumId ?? 0,
+      duration: Duration(milliseconds: m.duration ?? 0),
+      filePath: filePath,
+      uri: m.uri ?? '',
+      fileExtension: AudioFormat.normalizeExtension(
+        m.fileExtension,
+        fallbackPath: filePath,
+      ),
+      fileSize: m.size,
+      trackNumber: m.track ?? 0,
+      year: 0,
+    );
+  }
 
   Album _mapAlbum(AlbumModel m) => Album(
     id: m.id,

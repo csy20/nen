@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../domain/audio/audio_format.dart';
 import '../../domain/entities/entities.dart';
 import '../../domain/repositories/playlist_repository.dart';
 
@@ -305,17 +306,21 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
     );
   }
 
-  Song _mapSongRow(Map<String, Object?> row) => Song(
-    id: (row['song_id'] as int?) ?? 0,
-    title: (row['title'] as String?) ?? '',
-    artist: (row['artist'] as String?) ?? 'Unknown Artist',
-    album: (row['album'] as String?) ?? 'Unknown Album',
-    albumId: (row['album_id'] as int?) ?? 0,
-    duration: Duration(milliseconds: (row['duration_ms'] as int?) ?? 0),
-    filePath: (row['file_path'] as String?) ?? '',
-    trackNumber: (row['track_number'] as int?) ?? 0,
-    year: (row['year'] as int?) ?? 0,
-  );
+  Song _mapSongRow(Map<String, Object?> row) {
+    final filePath = (row['file_path'] as String?) ?? '';
+    return Song(
+      id: (row['song_id'] as int?) ?? 0,
+      title: (row['title'] as String?) ?? '',
+      artist: (row['artist'] as String?) ?? 'Unknown Artist',
+      album: (row['album'] as String?) ?? 'Unknown Album',
+      albumId: (row['album_id'] as int?) ?? 0,
+      duration: Duration(milliseconds: (row['duration_ms'] as int?) ?? 0),
+      filePath: filePath,
+      fileExtension: AudioFormat.extensionOf(filePath),
+      trackNumber: (row['track_number'] as int?) ?? 0,
+      year: (row['year'] as int?) ?? 0,
+    );
+  }
 
   Playlist _decode(String raw) {
     final map = jsonDecode(raw) as Map<String, dynamic>;
@@ -329,15 +334,24 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
     );
   }
 
-  Song _decodeSong(Map<String, dynamic> map) => Song(
-    id: map['id'] as int,
-    title: map['title'] as String,
-    artist: map['artist'] as String,
-    album: map['album'] as String,
-    albumId: map['albumId'] as int,
-    duration: Duration(milliseconds: map['duration'] as int),
-    filePath: map['filePath'] as String,
-    trackNumber: map['trackNumber'] as int? ?? 0,
-    year: map['year'] as int? ?? 0,
-  );
+  Song _decodeSong(Map<String, dynamic> map) {
+    final filePath = map['filePath'] as String? ?? '';
+    return Song(
+      id: map['id'] as int,
+      title: map['title'] as String,
+      artist: map['artist'] as String,
+      album: map['album'] as String,
+      albumId: map['albumId'] as int,
+      duration: Duration(milliseconds: map['duration'] as int),
+      filePath: filePath,
+      uri: map['uri'] as String? ?? '',
+      fileExtension: AudioFormat.normalizeExtension(
+        map['fileExtension'] as String?,
+        fallbackPath: filePath,
+      ),
+      fileSize: map['fileSize'] as int? ?? 0,
+      trackNumber: map['trackNumber'] as int? ?? 0,
+      year: map['year'] as int? ?? 0,
+    );
+  }
 }

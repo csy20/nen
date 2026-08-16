@@ -7,6 +7,9 @@ class Song {
   final int albumId;
   final Duration duration;
   final String filePath;
+  final String uri;
+  final String fileExtension;
+  final int fileSize;
   final int trackNumber;
   final int year;
 
@@ -18,6 +21,9 @@ class Song {
     required this.albumId,
     required this.duration,
     required this.filePath,
+    this.uri = '',
+    this.fileExtension = '',
+    this.fileSize = 0,
     this.trackNumber = 0,
     this.year = 0,
   });
@@ -37,6 +43,9 @@ class Song {
     int? albumId,
     Duration? duration,
     String? filePath,
+    String? uri,
+    String? fileExtension,
+    int? fileSize,
     int? trackNumber,
     int? year,
   }) {
@@ -48,6 +57,9 @@ class Song {
       albumId: albumId ?? this.albumId,
       duration: duration ?? this.duration,
       filePath: filePath ?? this.filePath,
+      uri: uri ?? this.uri,
+      fileExtension: fileExtension ?? this.fileExtension,
+      fileSize: fileSize ?? this.fileSize,
       trackNumber: trackNumber ?? this.trackNumber,
       year: year ?? this.year,
     );

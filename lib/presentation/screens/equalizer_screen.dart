@@ -63,7 +63,7 @@ class EqualizerScreen extends ConsumerWidget {
                   children: [
                     _presetChip(context, ref, colors, eq.bands, 'Flat', [1, 1, 1, 1, 1, 1, 1, 1]),
                     _presetChip(context, ref, colors, eq.bands, 'Bass Boost', [2.5, 2.0, 1.5, 1, 1, 1, 1, 1]),
-                    _presetChip(context, ref, colors, eq.bands, 'Treble Boost', [1, 1, 1, 1, 1.5, 2.0, 2.5, 3.0]),
+                    _presetChip(context, ref, colors, eq.bands, 'Treble Boost', [1, 1, 1, 1, 1.5, 2.0, 2.5, 2.5]),
                     _presetChip(context, ref, colors, eq.bands, 'V-Shape', [2.5, 1.8, 1, 0.8, 0.8, 1, 1.8, 2.5]),
                     _presetChip(context, ref, colors, eq.bands, 'Vocal', [0.8, 1, 1.5, 2.0, 2.0, 1.5, 1, 0.8]),
                   ],

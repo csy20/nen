@@ -29,6 +29,10 @@ class _FakeAudioRepository implements AudioRepository {
   bool get isInitialized => _initialized;
 
   @override
+  Duration get currentDuration =>
+      playedSongs.isEmpty ? Duration.zero : playedSongs.last.duration;
+
+  @override
   Stream<Duration> get positionStream => _positionController.stream;
 
   @override
@@ -369,6 +373,20 @@ void main() {
       expect(playback.currentSong, _songA);
       expect(audioRepository.playedSongs, [_songB, _songA]);
       expect(audioHandler.playbackState.value.queueIndex, 0);
+    });
+
+    test('shuffle next from last index still plays another track', () async {
+      final notifier = container.read(playbackProvider.notifier);
+
+      await notifier.playQueue(const [_songA, _songB], startIndex: 1);
+      notifier.toggleShuffle();
+      await notifier.next();
+      await Future<void>.delayed(Duration.zero);
+
+      final playback = container.read(playbackProvider);
+      expect(playback.isPlaying, isTrue);
+      expect(playback.currentSong, _songA);
+      expect(audioRepository.playedSongs, [_songB, _songA]);
     });
 
     test('skipToNext bypasses repeat-one completion behavior', () async {

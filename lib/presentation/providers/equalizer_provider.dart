@@ -41,7 +41,13 @@ class EqualizerNotifier extends StateNotifier<EqualizerState> {
   Future<void> toggleActive() async {
     final newActive = !state.isActive;
     state = state.copyWith(isActive: newActive);
-    await _ref.read(audioRepositoryProvider).setEqualizerActive(newActive);
+    final audio = _ref.read(audioRepositoryProvider);
+    await audio.setEqualizerActive(newActive);
+    if (newActive) {
+      await Future.wait([
+        for (int i = 1; i <= 8; i++) audio.setEqualizerBand(i, state.bands[i - 1]),
+      ]);
+    }
     await _ref.read(settingsRepositoryProvider).setEqualizerActive(newActive);
   }
 

@@ -64,4 +64,7 @@ abstract class AudioRepository {
 
   /// Whether the engine is currently initialized.
   bool get isInitialized;
+
+  /// Decoder-reported duration of the current source, or [Duration.zero].
+  Duration get currentDuration;
 }

@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:audio_service/audio_service.dart' as audio_svc;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../domain/audio/audio_playback_exception.dart';
 import '../../domain/entities/entities.dart';
 import '../../data/services/nen_audio_handler.dart';
 import 'di_providers.dart';
@@ -83,7 +84,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
       _updateDuration(songs[idx]);
       _trackRecentlyPlayed(songs[idx]);
     } catch (e) {
-      _emitError('Failed to play: ${songs[idx].title}');
+      _emitError(_playErrorMessage(e, songs[idx].title));
       state = prevState;
     }
   }
@@ -103,7 +104,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
       _updateDuration(song);
       _trackRecentlyPlayed(song);
     } catch (e) {
-      _emitError('Failed to play: ${song.title}');
+      _emitError(_playErrorMessage(e, song.title));
       state = prevState;
     }
   }
@@ -145,12 +146,16 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
 
     int nextIndex;
     if (state.shuffleMode == ShuffleMode.on) {
-      if (state.repeatMode != NenRepeatMode.all &&
-          state.queueIndex >= state.queue.length - 1) {
-        await stop();
-        return;
+      if (state.queue.length <= 1) {
+        if (state.repeatMode == NenRepeatMode.all && state.queue.isNotEmpty) {
+          nextIndex = 0;
+        } else {
+          await stop();
+          return;
+        }
+      } else {
+        nextIndex = _pickRandomQueueIndex();
       }
-      nextIndex = _pickRandomQueueIndex();
     } else {
       nextIndex = state.queueIndex + 1;
     }
@@ -347,8 +352,18 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
   }
 
   void _updateDuration(Song song) {
-    state = state.copyWith(duration: song.duration);
+    final decoded = _handler.currentDuration;
+    state = state.copyWith(
+      duration: decoded > Duration.zero ? decoded : song.duration,
+    );
     _preloadNextTrack();
+  }
+
+  String _playErrorMessage(Object error, String title) {
+    if (error is AudioPlaybackException) {
+      return error.message;
+    }
+    return 'Failed to play: $title';
   }
 
   void _preloadNextTrack() {
