@@ -69,9 +69,13 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
     int queueIndex = 0,
   }) async {
     _playing = true;
-    // Publish metadata before the engine starts so Samsung/Android 14
-    // shows the track instead of the generic "nen is running" FGS text.
-    await _publishMediaItem(song);
+    // Metadata must hit MediaSession before playing=true starts the FGS.
+    // Samsung One UI shows "nen is running" + an empty bar when title
+    // or duration is missing at that moment.
+    final item = _mediaItemFor(song);
+    mediaItem.add(item);
+    this.queue.add([item]);
+    await Future<void>.delayed(Duration.zero);
     _broadcastState(position: Duration.zero, queueIndex: queueIndex);
     unawaited(_attachArtwork(song));
     try {
@@ -89,7 +93,7 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
         current.duration != duration) {
       mediaItem.add(current.copyWith(duration: duration));
     }
-    _broadcastState(queueIndex: queueIndex);
+    _broadcastState(position: Duration.zero, queueIndex: queueIndex);
   }
 
   Duration get currentDuration => _audioRepo.currentDuration;
@@ -118,7 +122,13 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
   @override
   Future<void> seek(Duration position) async {
     await _audioRepo.seek(position);
-    playbackState.add(playbackState.value.copyWith(updatePosition: position));
+    final dur = mediaItem.value?.duration ?? _audioRepo.currentDuration;
+    playbackState.add(
+      playbackState.value.copyWith(
+        updatePosition: position,
+        bufferedPosition: dur > position ? dur : position,
+      ),
+    );
   }
 
   @override
@@ -175,32 +185,41 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
     );
   }
 
-  Future<void> _publishMediaItem(Song song, {Uri? artUri}) async {
-    final duration = AudioFormat.coalesceDuration(
-      _audioRepo.currentDuration,
-      song.duration,
-    );
+  /// Build notification metadata from library tags, not the decoder.
+  ///
+  /// Do not pass a `content://` audio URI as [MediaItem.artUri]. audio_service
+  /// calls `ContentResolver.loadThumbnail` on that URI *before* applying
+  /// metadata. On a 1–2 hour lecture MP3 that extract can hang, so Samsung
+  /// keeps the FGS fallback "nen is running" with an empty seek bar.
+  as_lib.MediaItem _mediaItemFor(Song song, {Uri? artUri, Duration? duration}) {
+    final resolvedDuration =
+        duration ??
+        (song.duration > Duration.zero
+            ? song.duration
+            : AudioFormat.coalesceDuration(
+                _audioRepo.currentDuration,
+                song.duration,
+              ));
     final id = song.uri.isNotEmpty
         ? song.uri
         : (song.filePath.isNotEmpty ? song.filePath : 'nen-${song.id}');
-    final contentUri = song.uri.startsWith('content:')
-        ? Uri.tryParse(song.uri)
+    final title = song.title.trim().isEmpty ? 'Unknown title' : song.title;
+    final artist = song.artist.trim().isEmpty ? 'Unknown artist' : song.artist;
+    final album = song.album.trim().isEmpty ? 'Unknown album' : song.album;
+    final safeArt = (artUri != null && artUri.scheme != 'content')
+        ? artUri
         : null;
-    mediaItem.add(
-      as_lib.MediaItem(
-        id: id,
-        title: song.title.isEmpty ? 'nen' : song.title,
-        artist: song.artist.isEmpty ? 'Unknown artist' : song.artist,
-        album: song.album.isEmpty ? 'nen' : song.album,
-        duration: duration > Duration.zero ? duration : null,
-        artUri: artUri ?? contentUri,
-        playable: true,
-        displayTitle: song.title.isEmpty ? 'nen' : song.title,
-        displaySubtitle: song.artist,
-        extras: contentUri != null
-            ? <String, dynamic>{'loadThumbnailUri': song.uri}
-            : null,
-      ),
+    return as_lib.MediaItem(
+      id: id,
+      title: title,
+      artist: artist,
+      album: album,
+      duration: resolvedDuration > Duration.zero ? resolvedDuration : null,
+      artUri: safeArt,
+      playable: true,
+      displayTitle: title,
+      displaySubtitle: artist,
+      extras: <String, dynamic>{'songId': song.id},
     );
   }
 
@@ -210,10 +229,11 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
     try {
       final bytes = await repo.getAlbumArt(song.id, size: 300);
       if (bytes == null || bytes.isEmpty) return;
-      if (mediaItem.value?.title != song.title) return;
+      if (mediaItem.value?.extras?['songId'] != song.id) return;
       final uri = await _writeArtFile(song.id, bytes);
       if (uri == null) return;
-      await _publishMediaItem(song, artUri: uri);
+      if (mediaItem.value?.extras?['songId'] != song.id) return;
+      mediaItem.add(_mediaItemFor(song, artUri: uri));
     } catch (e) {
       debugPrint('notification art error: $e');
     }
@@ -233,7 +253,9 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
 
   void _broadcastState({Duration? position, int? queueIndex}) {
     final currentState = playbackState.value;
-    final pos = position ?? currentState.position;
+    // Use updatePosition, not position: the latter is projected forward
+    // while playing, so a slow ExoPlayer load would look like a seek.
+    final pos = position ?? currentState.updatePosition;
     final dur = mediaItem.value?.duration ?? _audioRepo.currentDuration;
     playbackState.add(
       currentState.copyWith(
@@ -315,7 +337,7 @@ Future<NenAudioHandler> initAudioHandler(
       androidNotificationChannelId: 'dev.csy20.nen.audio',
       androidNotificationChannelName: 'Now playing',
       androidNotificationChannelDescription: 'Playback controls and track info',
-      androidNotificationIcon: 'mipmap/ic_launcher',
+      androidNotificationIcon: 'drawable/ic_stat_nen',
       notificationColor: Color(0xFF8B7EC8),
       androidNotificationOngoing: true,
       androidStopForegroundOnPause: true,
