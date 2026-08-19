@@ -3,6 +3,9 @@
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
 
+# App MethodChannel / EventChannel plugins (visualizer, MainActivity)
+-keep class dev.csy20.nen.** { *; }
+
 # ── audio_service ────────────────────────────────────────────────────
 -keep class com.ryanheise.audioservice.** { *; }
 
