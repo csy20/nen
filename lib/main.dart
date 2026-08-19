@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'data/repositories/audio_repository_impl.dart';
+import 'data/repositories/music_repository_impl.dart';
 import 'data/services/nen_audio_handler.dart';
 import 'presentation/providers/di_providers.dart';
 import 'presentation/providers/playback_provider.dart';
@@ -44,12 +45,17 @@ void main() async {
 
   // Initialize background audio service
   final audioRepo = AudioRepositoryImpl();
-  final globalAudioHandler = await _initAudioHandlerWithFallback(audioRepo);
+  final musicRepo = MusicRepositoryImpl();
+  final globalAudioHandler = await _initAudioHandlerWithFallback(
+    audioRepo,
+    musicRepo,
+  );
 
   runApp(
     ProviderScope(
       overrides: [
         audioRepositoryProvider.overrideWithValue(audioRepo),
+        musicRepositoryProvider.overrideWithValue(musicRepo),
         audioHandlerProvider.overrideWithValue(globalAudioHandler),
       ],
       child: const NenApp(),
@@ -59,14 +65,16 @@ void main() async {
 
 Future<NenAudioHandler> _initAudioHandlerWithFallback(
   AudioRepositoryImpl audioRepo,
+  MusicRepositoryImpl musicRepo,
 ) async {
   try {
     return await initAudioHandler(
       audioRepo,
+      musicRepo: musicRepo,
     ).timeout(const Duration(seconds: 8));
   } catch (_) {
     // If audio_service stalls/fails during startup, keep the app bootable.
-    final handler = NenAudioHandler(audioRepo);
+    final handler = NenAudioHandler(audioRepo, musicRepo: musicRepo);
     await handler.init();
     return handler;
   }
