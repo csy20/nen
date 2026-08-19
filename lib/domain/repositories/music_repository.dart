@@ -9,7 +9,7 @@ abstract class MusicRepository {
   Future<List<Artist>> getArtists();
   Future<List<Song>> getSongsByAlbum(int albumId);
   Future<List<Song>> getSongsByArtist(int artistId);
-  Future<Uint8List?> getAlbumArt(int songId);
+  Future<Uint8List?> getAlbumArt(int songId, {int size = 96});
   Future<List<Song>> searchSongs(String query);
   Future<List<String>> getFolders();
   Future<List<Song>> getSongsByFolder(String path);

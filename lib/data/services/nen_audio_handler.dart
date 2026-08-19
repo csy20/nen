@@ -5,6 +5,7 @@ import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 
 import '../../domain/audio/audio_format.dart';
+import '../../domain/audio/audio_playback_exception.dart';
 import '../../domain/entities/entities.dart';
 import '../../domain/repositories/audio_repository.dart';
 
@@ -62,7 +63,11 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
     List<Song>? queue,
     int queueIndex = 0,
   }) async {
-    await _audioRepo.play(song);
+    try {
+      await _audioRepo.play(song);
+    } on PlaybackSupersededException {
+      return;
+    }
     _playing = true;
 
     final duration = AudioFormat.coalesceDuration(

@@ -13,6 +13,9 @@ class _FakeAudioRepository implements AudioRepository {
   bool get isInitialized => true;
 
   @override
+  bool get isVisualizerLive => false;
+
+  @override
   Duration get currentDuration => Duration.zero;
 
   @override

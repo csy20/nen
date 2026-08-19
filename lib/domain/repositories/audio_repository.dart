@@ -65,6 +65,9 @@ abstract class AudioRepository {
   /// Whether the engine is currently initialized.
   bool get isInitialized;
 
+  /// True when SoLoud is the active backend and FFT data is live.
+  bool get isVisualizerLive;
+
   /// Decoder-reported duration of the current source, or [Duration.zero].
   Duration get currentDuration;
 }

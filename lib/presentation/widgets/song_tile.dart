@@ -23,8 +23,7 @@ class SongTile extends ConsumerWidget {
     final artAsync = ref.watch(albumArtProvider(song.id));
     final currentSongId = ref.watch(currentSongIdProvider);
     final isPlaying = currentSongId == song.id;
-    final favorites = ref.watch(favoritesProvider);
-    final isFav = favorites.contains(song.id);
+    final isFav = ref.watch(favoritesProvider.select((s) => s.contains(song.id)));
     final colors = NenTheme.of(context);
 
     return ListTile(

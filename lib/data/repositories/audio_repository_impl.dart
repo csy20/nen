@@ -45,8 +45,8 @@ class AudioRepositoryImpl implements AudioRepository {
   bool _soloudReady = false;
   bool _disposed = false;
   bool _completionFired = false;
-  bool _transitionInProgress = false;
-  Song? _pendingPlay;
+  int _playGeneration = 0;
+  bool _wantPlaying = false;
   _Backend _activeBackend = _Backend.none;
   Duration _lastPosition = Duration.zero;
   Duration _currentDuration = Duration.zero;
@@ -57,6 +57,10 @@ class AudioRepositoryImpl implements AudioRepository {
 
   @override
   bool get isInitialized => _initialized;
+
+  @override
+  bool get isVisualizerLive =>
+      _soloudReady && _activeBackend == _Backend.soloud && !_disposed;
 
   @override
   Duration get currentDuration => _currentDuration;
@@ -128,31 +132,25 @@ class AudioRepositoryImpl implements AudioRepository {
 
   @override
   Future<void> play(Song song) async {
-    if (_transitionInProgress) {
-      _pendingPlay = song;
-      return;
-    }
-    _transitionInProgress = true;
-    try {
-      if (!_initialized) await initialize();
-      await _playSong(song);
-    } finally {
-      _transitionInProgress = false;
-      final pending = _pendingPlay;
-      _pendingPlay = null;
-      if (pending != null && !_disposed) {
-        await play(pending);
-      }
-    }
+    final gen = ++_playGeneration;
+    _wantPlaying = true;
+    if (!_initialized) await initialize();
+    _ensureCurrent(gen);
+    await _playSong(song, gen);
   }
 
-  Future<void> _playSong(Song song) async {
-    final readable = _isReadableFile(song.filePath);
+  bool _stale(int gen) => _disposed || gen != _playGeneration;
+
+  void _ensureCurrent(int gen) {
+    if (_stale(gen)) throw const PlaybackSupersededException();
+  }
+
+  Future<void> _playSong(Song song, int gen) async {
     final preferred = AudioFormat.preferredBackend(
       extension: song.fileExtension,
       filePath: song.filePath,
-      fileIsReadable: readable,
-      fileSize: _resolvedFileSize(song),
+      fileIsReadable: song.filePath.isNotEmpty,
+      fileSize: song.fileSize,
       duration: song.duration,
     );
     final first = preferred == AudioBackend.soloud
@@ -164,16 +162,23 @@ class AudioRepositoryImpl implements AudioRepository {
 
     Object? firstError;
     try {
-      await _playWithBackend(song, first);
+      await _playWithBackend(song, first, gen);
+      _ensureCurrent(gen);
       return;
+    } on ja.PlayerInterruptedException {
+      throw const PlaybackSupersededException();
+    } on PlaybackSupersededException {
+      rethrow;
     } catch (e) {
+      _ensureCurrent(gen);
       firstError = e;
       debugPrint('primary backend $first failed: $e');
     }
 
+    _ensureCurrent(gen);
     if (second == _Backend.soloud &&
         !AudioFormat.canSafelyDecodeToMemory(
-          fileSizeBytes: _resolvedFileSize(song),
+          fileSizeBytes: song.fileSize,
           duration: song.duration,
         )) {
       throw AudioPlaybackException.unsupported(
@@ -188,8 +193,14 @@ class AudioRepositoryImpl implements AudioRepository {
     }
 
     try {
-      await _playWithBackend(song, second);
+      await _playWithBackend(song, second, gen);
+      _ensureCurrent(gen);
+    } on ja.PlayerInterruptedException {
+      throw const PlaybackSupersededException();
+    } on PlaybackSupersededException {
+      rethrow;
     } catch (e) {
+      _ensureCurrent(gen);
       debugPrint('fallback backend $second failed: $e');
       debugPrint('primary backend error was: $firstError');
       throw AudioPlaybackException.unsupported(
@@ -204,11 +215,11 @@ class AudioRepositoryImpl implements AudioRepository {
     }
   }
 
-  Future<void> _playWithBackend(Song song, _Backend backend) async {
+  Future<void> _playWithBackend(Song song, _Backend backend, int gen) async {
     if (backend == _Backend.soloud) {
-      await _playWithSoLoud(song);
+      await _playWithSoLoud(song, gen);
     } else {
-      await _playWithSystem(song);
+      await _playWithSystem(song, gen);
     }
   }
 
@@ -216,7 +227,7 @@ class AudioRepositoryImpl implements AudioRepository {
   Future<void> preload(Song song) async {
     if (!_initialized) await initialize();
     if (!AudioFormat.canSafelyDecodeToMemory(
-      fileSizeBytes: _resolvedFileSize(song),
+      fileSizeBytes: song.fileSize,
       duration: song.duration,
     )) {
       return;
@@ -230,7 +241,7 @@ class AudioRepositoryImpl implements AudioRepository {
       extension: ext,
       filePath: song.filePath,
       fileIsReadable: readable,
-      fileSize: _resolvedFileSize(song),
+      fileSize: song.fileSize,
       duration: song.duration,
     );
     if (preferred != AudioBackend.soloud || !readable) {
@@ -258,21 +269,18 @@ class AudioRepositoryImpl implements AudioRepository {
   @override
   Future<void> playPreloaded() async {
     if (_preloadedSource == null) return;
-    if (_transitionInProgress) return;
-    _transitionInProgress = true;
-    try {
-      await _stopSystemPlayback();
-      final preloadedSource = _preloadedSource!;
-      _preloadedSource = null;
-      _preloadedFilePath = null;
-      await _playSoLoudSource(preloadedSource);
-    } finally {
-      _transitionInProgress = false;
-    }
+    final gen = ++_playGeneration;
+    await _stopSystemPlayback();
+    if (_stale(gen)) return;
+    final preloadedSource = _preloadedSource!;
+    _preloadedSource = null;
+    _preloadedFilePath = null;
+    await _playSoLoudSource(preloadedSource);
   }
 
   @override
   Future<void> pause() async {
+    _wantPlaying = false;
     if (_activeBackend == _Backend.system) {
       try {
         await _systemPlayer?.pause();
@@ -293,6 +301,7 @@ class AudioRepositoryImpl implements AudioRepository {
 
   @override
   Future<void> resume() async {
+    _wantPlaying = true;
     if (_activeBackend == _Backend.system) {
       try {
         await _systemPlayer?.play();
@@ -313,11 +322,27 @@ class AudioRepositoryImpl implements AudioRepository {
 
   @override
   Future<void> stop() async {
+    _playGeneration++;
+    _wantPlaying = false;
     _positionTimer?.cancel();
     _lastPosition = Duration.zero;
-    _currentDuration = Duration.zero;
     _completionFired = true;
-    await _stopAllTracks();
+    final player = _systemPlayer;
+    if (player != null && _activeBackend == _Backend.system) {
+      try {
+        await player.pause();
+      } catch (e) {
+        debugPrint('system pause-on-stop error: $e');
+      }
+      unawaited(player.seek(Duration.zero));
+      _activeBackend = _Backend.none;
+      return;
+    }
+    if (_soloudReady) {
+      unawaited(_stopAllTracks());
+    } else {
+      _activeBackend = _Backend.none;
+    }
   }
 
   @override
@@ -526,9 +551,9 @@ class AudioRepositoryImpl implements AudioRepository {
   @override
   List<double> getEqualizerBands() => List.unmodifiable(_eqBands);
 
-  Future<void> _playWithSoLoud(Song song) async {
+  Future<void> _playWithSoLoud(Song song, int gen) async {
     if (!AudioFormat.canSafelyDecodeToMemory(
-      fileSizeBytes: _resolvedFileSize(song),
+      fileSizeBytes: song.fileSize,
       duration: song.duration,
     )) {
       throw AudioPlaybackException(
@@ -543,8 +568,11 @@ class AudioRepositoryImpl implements AudioRepository {
       );
     }
     await _stopSystemPlayback();
+    _ensureCurrent(gen);
     await _ensureSoLoud();
+    _ensureCurrent(gen);
     final nextSource = await _takeOrLoadSource(song);
+    _ensureCurrent(gen);
     await _playSoLoudSource(nextSource, metadataDuration: song.duration);
   }
 
@@ -602,41 +630,69 @@ class AudioRepositoryImpl implements AudioRepository {
     _startPositionTracking();
   }
 
-  Future<void> _playWithSystem(Song song) async {
-    await _stopAllTracks();
-    await _releaseSoLoudEngine();
+  Future<void> _playWithSystem(Song song, int gen) async {
     _ensureSystemPlayer();
     final player = _systemPlayer!;
-    final duration = await _setSystemSource(player, song);
-    await player.setVolume(_volume);
-    await player.setSpeed(_speed);
-    await player.play();
+    // just_audio forces preload if already playing. Pause first so
+    // setAudioSource(preload: false) can return immediately.
+    if (player.playing) {
+      try {
+        await player.pause();
+      } catch (e) {
+        debugPrint('pause before source swap error: $e');
+      }
+    }
+    _ensureCurrent(gen);
+    if (_soloudReady) {
+      await _releaseSoLoudEngine();
+      _ensureCurrent(gen);
+    }
+
     _activeBackend = _Backend.system;
     _completionFired = false;
     _lastPosition = Duration.zero;
+    _currentDuration = song.duration;
+    _positionController.add(Duration.zero);
+
+    final duration = await _setSystemSource(player, song);
+    _ensureCurrent(gen);
     _currentDuration = AudioFormat.coalesceDuration(
       duration ?? Duration.zero,
       song.duration,
     );
-    _positionController.add(Duration.zero);
+    try {
+      await player.setVolume(_volume);
+      await player.setSpeed(_speed);
+    } catch (e) {
+      debugPrint('system volume/speed error: $e');
+    }
+    _ensureCurrent(gen);
+    if (!_wantPlaying) return;
+    await player.play();
   }
 
   Future<Duration?> _setSystemSource(ja.AudioPlayer player, Song song) async {
-    Object? pathError;
-    if (_isReadableFile(song.filePath)) {
+    Object? uriError;
+    if (song.uri.isNotEmpty) {
       try {
-        return await player.setFilePath(song.filePath);
+        return await player.setAudioSource(
+          ja.AudioSource.uri(Uri.parse(song.uri)),
+          preload: false,
+        );
+      } on ja.PlayerInterruptedException {
+        rethrow;
       } catch (e) {
-        pathError = e;
-        debugPrint('setFilePath failed: $e');
+        uriError = e;
+        debugPrint('setAudioSource uri failed: $e');
       }
     }
-    if (song.uri.isNotEmpty) {
-      return player.setAudioSource(ja.AudioSource.uri(Uri.parse(song.uri)));
+    if (song.filePath.isNotEmpty) {
+      return player.setAudioSource(
+        ja.AudioSource.file(song.filePath),
+        preload: false,
+      );
     }
-    if (pathError != null) {
-      throw pathError;
-    }
+    if (uriError != null) throw uriError;
     throw AudioPlaybackException(
       'No playable path or URI for "${song.title}"',
       formatLabel: AudioFormat.displayName(song.fileExtension),
@@ -702,22 +758,12 @@ class AudioRepositoryImpl implements AudioRepository {
     // LoadMode.memory runs on a Dart isolate and decompresses the whole
     // file to PCM. That is what aborted the process with malloc(~968 MB).
     if (AudioFormat.canSafelyDecodeToMemory(
-      fileSizeBytes: _resolvedFileSize(song),
+      fileSizeBytes: song.fileSize,
       duration: song.duration,
     )) {
       return LoadMode.memory;
     }
     return LoadMode.disk;
-  }
-
-  int _resolvedFileSize(Song song) {
-    if (song.fileSize > 0) return song.fileSize;
-    if (!_isReadableFile(song.filePath)) return 0;
-    try {
-      return File(song.filePath).lengthSync();
-    } catch (_) {
-      return 0;
-    }
   }
 
   void _startPositionTracking() {

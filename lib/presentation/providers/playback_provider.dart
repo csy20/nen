@@ -48,6 +48,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
   int? _crossfadeTriggeredSongId;
   bool _completionTransitionInFlight = false;
   Timer? _persistDebounce;
+  int _playRequestId = 0;
 
   PlaybackNotifier(this._handler, this._ref) : super(const PlaybackState()) {
     _handler.onCompletion = _handleSongCompletion;
@@ -75,28 +76,22 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
   Future<void> playQueue(List<Song> songs, {int startIndex = 0}) async {
     if (songs.isEmpty) return;
     final idx = startIndex.clamp(0, songs.length - 1);
-    final prevState = state;
+    final song = songs[idx];
+    final requestId = ++_playRequestId;
     _crossfadeTriggeredSongId = null;
     state = state.copyWith(
       queue: songs,
       queueIndex: idx,
-      currentSong: songs[idx],
+      currentSong: song,
       isPlaying: true,
       position: Duration.zero,
-      duration: songs[idx].duration,
+      duration: song.duration,
     );
-    try {
-      await _handler.playSong(songs[idx], queue: songs, queueIndex: idx);
-      _updateDuration(songs[idx]);
-      _trackRecentlyPlayed(songs[idx]);
-    } catch (e) {
-      _emitError(_playErrorMessage(e, songs[idx].title));
-      state = prevState;
-    }
+    unawaited(_runPlay(requestId, song, queue: songs, queueIndex: idx));
   }
 
   Future<void> playSong(Song song) async {
-    final prevState = state;
+    final requestId = ++_playRequestId;
     _crossfadeTriggeredSongId = null;
     state = state.copyWith(
       queue: [song],
@@ -106,13 +101,26 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
       position: Duration.zero,
       duration: song.duration,
     );
+    unawaited(_runPlay(requestId, song));
+  }
+
+  Future<void> _runPlay(
+    int requestId,
+    Song song, {
+    List<Song>? queue,
+    int queueIndex = 0,
+  }) async {
     try {
-      await _handler.playSong(song);
+      await _handler.playSong(song, queue: queue, queueIndex: queueIndex);
+      if (requestId != _playRequestId) return;
       _updateDuration(song);
       _trackRecentlyPlayed(song);
+    } on PlaybackSupersededException {
+      return;
     } catch (e) {
+      if (requestId != _playRequestId) return;
       _emitError(_playErrorMessage(e, song.title));
-      state = prevState;
+      state = state.copyWith(isPlaying: false);
     }
   }
 
@@ -176,24 +184,17 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
       }
     }
 
+    final song = state.queue[nextIndex];
+    final requestId = ++_playRequestId;
     _crossfadeTriggeredSongId = null;
     state = state.copyWith(
       queueIndex: nextIndex,
-      currentSong: state.queue[nextIndex],
+      currentSong: song,
       isPlaying: true,
       position: Duration.zero,
+      duration: song.duration,
     );
-    try {
-      await _handler.playSong(
-        state.queue[nextIndex],
-        queue: state.queue,
-        queueIndex: nextIndex,
-      );
-      _updateDuration(state.queue[nextIndex]);
-      _trackRecentlyPlayed(state.queue[nextIndex]);
-    } catch (e) {
-      _emitError('Failed to play next track');
-    }
+    unawaited(_runPlay(requestId, song, queue: state.queue, queueIndex: nextIndex));
   }
 
   Future<void> previous() async {
@@ -213,32 +214,28 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
       }
     }
 
+    final song = state.queue[prevIndex];
+    final requestId = ++_playRequestId;
     _crossfadeTriggeredSongId = null;
     state = state.copyWith(
       queueIndex: prevIndex,
-      currentSong: state.queue[prevIndex],
+      currentSong: song,
       isPlaying: true,
       position: Duration.zero,
+      duration: song.duration,
     );
-    try {
-      await _handler.playSong(
-        state.queue[prevIndex],
-        queue: state.queue,
-        queueIndex: prevIndex,
-      );
-      _updateDuration(state.queue[prevIndex]);
-      _trackRecentlyPlayed(state.queue[prevIndex]);
-    } catch (e) {
-      _emitError('Failed to play previous track');
-    }
+    unawaited(_runPlay(requestId, song, queue: state.queue, queueIndex: prevIndex));
   }
 
   Future<void> stop() async {
-    try {
-      await _handler.stop();
-    } catch (_) {}
+    _playRequestId++;
     _crossfadeTriggeredSongId = null;
     state = state.copyWith(isPlaying: false, position: Duration.zero);
+    unawaited(() async {
+      try {
+        await _handler.stop();
+      } catch (_) {}
+    }());
   }
 
   void toggleShuffle() {

@@ -58,15 +58,11 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar>
 
   @override
   Widget build(BuildContext context) {
-    final playback = ref.watch(playbackProvider);
-    final song = playback.currentSong;
+    final song = ref.watch(playbackProvider.select((s) => s.currentSong));
+    final isPlaying = ref.watch(playbackProvider.select((s) => s.isPlaying));
     final colors = NenTheme.of(context);
 
     if (song == null) return const SizedBox.shrink();
-
-    final progress = playback.duration > Duration.zero
-        ? playback.position.inMilliseconds / playback.duration.inMilliseconds
-        : 0.0;
 
     return SlideTransition(
       position: _slideAnimation,
@@ -101,13 +97,29 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar>
                         borderRadius: const BorderRadius.vertical(
                           top: Radius.circular(18),
                         ),
-                        child: LinearProgressIndicator(
-                          value: progress.clamp(0.0, 1.0),
-                          minHeight: 2,
-                          backgroundColor: Colors.white.withValues(alpha: 0.05),
-                          valueColor: AlwaysStoppedAnimation(
-                            Theme.of(context).colorScheme.primary,
-                          ),
+                        child: Consumer(
+                          builder: (context, ref, _) {
+                            final position = ref.watch(
+                              playbackProvider.select((s) => s.position),
+                            );
+                            final duration = ref.watch(
+                              playbackProvider.select((s) => s.duration),
+                            );
+                            final progress = duration > Duration.zero
+                                ? position.inMilliseconds /
+                                      duration.inMilliseconds
+                                : 0.0;
+                            return LinearProgressIndicator(
+                              value: progress.clamp(0.0, 1.0),
+                              minHeight: 2,
+                              backgroundColor: Colors.white.withValues(
+                                alpha: 0.05,
+                              ),
+                              valueColor: AlwaysStoppedAnimation(
+                                Theme.of(context).colorScheme.primary,
+                              ),
+                            );
+                          },
                         ),
                       ),
                       Expanded(
@@ -160,7 +172,7 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar>
                             ),
                             // Play/pause with animated icon morph
                             _AnimatedPlayPauseButton(
-                              isPlaying: playback.isPlaying,
+                              isPlaying: isPlaying,
                               onPressed: () => ref
                                   .read(playbackProvider.notifier)
                                   .togglePlayPause(),

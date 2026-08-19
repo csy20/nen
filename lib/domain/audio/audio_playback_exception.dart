@@ -1,3 +1,8 @@
+/// Thrown when a newer play/skip request cancelled this load.
+class PlaybackSupersededException implements Exception {
+  const PlaybackSupersededException();
+}
+
 /// Thrown when every available decoder fails to play a track.
 class AudioPlaybackException implements Exception {
   final String message;

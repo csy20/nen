@@ -240,8 +240,8 @@ class _HomeNowPlayingCard extends ConsumerWidget {
     final colors = NenTheme.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final playback = ref.watch(playbackProvider);
-    final song = playback.currentSong;
+    final song = ref.watch(playbackProvider.select((s) => s.currentSong));
+    final isPlaying = ref.watch(playbackProvider.select((s) => s.isPlaying));
 
     if (song == null) {
       // Empty state
@@ -265,7 +265,7 @@ class _HomeNowPlayingCard extends ConsumerWidget {
       );
     }
 
-    final artAsync = ref.watch(albumArtProvider(song.id));
+    final artAsync = ref.watch(largeAlbumArtProvider(song.id));
 
     return GestureDetector(
       onTap: () {
@@ -380,7 +380,7 @@ class _HomeNowPlayingCard extends ConsumerWidget {
                     ),
                     child: Center(
                       child: Icon(
-                        playback.isPlaying
+                        isPlaying
                             ? Icons.pause_rounded
                             : Icons.play_arrow_rounded,
                         size: 32,
@@ -396,7 +396,7 @@ class _HomeNowPlayingCard extends ConsumerWidget {
             // Bottom Area (Visualizer Icon)
             Row(
               children: [
-                _VisualizerBars(isPlaying: playback.isPlaying),
+                _VisualizerBars(isPlaying: isPlaying),
                 const Spacer(),
               ],
             ),

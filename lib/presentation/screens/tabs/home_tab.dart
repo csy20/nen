@@ -63,19 +63,23 @@ class HomeTab extends ConsumerWidget {
                     bottom: 120,
                   ), // Padding for the floating bottom nav
                   sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate((context, index) {
-                      final song = songs[index];
-                      return SongTile(
-                        song: song,
-                        onTap: () {
-                          ref
-                              .read(playbackProvider.notifier)
-                              .playQueue(songs, startIndex: index);
-                        },
-                        onLongPress: () =>
-                            showSongActionsSheet(context, ref, song),
-                      );
-                    }, childCount: songs.length),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final song = songs[index];
+                        return SongTile(
+                          song: song,
+                          onTap: () {
+                            ref
+                                .read(playbackProvider.notifier)
+                                .playQueue(songs, startIndex: index);
+                          },
+                          onLongPress: () =>
+                              showSongActionsSheet(context, ref, song),
+                        );
+                      },
+                      childCount: songs.length,
+                      addAutomaticKeepAlives: false,
+                    ),
                   ),
                 );
               },

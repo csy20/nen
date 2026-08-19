@@ -14,7 +14,7 @@ class _FakeMusicRepository implements MusicRepository {
   Future<List<Album>> getAlbums() async => const [];
 
   @override
-  Future<Uint8List?> getAlbumArt(int songId) async => null;
+  Future<Uint8List?> getAlbumArt(int songId, {int size = 96}) async => null;
 
   @override
   Future<List<Artist>> getArtists() async => const [];

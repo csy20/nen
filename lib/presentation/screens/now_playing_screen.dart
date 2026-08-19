@@ -182,7 +182,9 @@ class NowPlayingScreen extends ConsumerWidget {
     bool isPlaying,
   ) {
     final colors = NenTheme.of(context);
-    final artAsync = song != null ? ref.watch(albumArtProvider(song.id)) : null;
+    final artAsync = song != null
+        ? ref.watch(largeAlbumArtProvider(song.id))
+        : null;
 
     // We increase width slightly to make room for the vinyl sticking out.
     final containerWidth = artSize + (artSize * 0.3);
@@ -1343,8 +1345,7 @@ class _VisualizerWidgetState extends ConsumerState<_VisualizerWidget>
     WidgetsBinding.instance.addObserver(this);
     _animController =
         AnimationController(vsync: this, duration: const Duration(seconds: 4))
-          ..addListener(_onFrame)
-          ..repeat();
+          ..addListener(_onFrame);
   }
 
   @override
@@ -1375,6 +1376,15 @@ class _VisualizerWidgetState extends ConsumerState<_VisualizerWidget>
 
   @override
   Widget build(BuildContext context) {
+    final playing = ref.watch(playbackProvider.select((s) => s.isPlaying));
+    final live = ref.read(audioRepositoryProvider).isVisualizerLive;
+    if (playing && live) {
+      if (!_animController.isAnimating) {
+        _animController.repeat();
+      }
+    } else if (_animController.isAnimating) {
+      _animController.stop();
+    }
     return AnimatedBuilder(
       animation: _animController,
       builder: (context, _) {
@@ -1504,8 +1514,7 @@ class _VisualizerRowWidgetState extends ConsumerState<_VisualizerRowWidget>
     WidgetsBinding.instance.addObserver(this);
     _animController =
         AnimationController(vsync: this, duration: const Duration(seconds: 4))
-          ..addListener(_onFrame)
-          ..repeat();
+          ..addListener(_onFrame);
   }
 
   @override
@@ -1538,6 +1547,15 @@ class _VisualizerRowWidgetState extends ConsumerState<_VisualizerRowWidget>
 
   @override
   Widget build(BuildContext context) {
+    final playing = ref.watch(playbackProvider.select((s) => s.isPlaying));
+    final live = ref.read(audioRepositoryProvider).isVisualizerLive;
+    if (playing && live) {
+      if (!_animController.isAnimating) {
+        _animController.repeat();
+      }
+    } else if (_animController.isAnimating) {
+      _animController.stop();
+    }
     return AnimatedBuilder(
       animation: _animController,
       builder: (context, _) {
@@ -1602,7 +1620,8 @@ void _driveVisualizerHeights({
   bool mirrorFromCenter = false,
 }) {
   final isPlaying = ref.read(playbackProvider).isPlaying;
-  if (!isPlaying) {
+  final live = ref.read(audioRepositoryProvider).isVisualizerLive;
+  if (!isPlaying || !live) {
     for (int i = 0; i < currentHeights.length; i++) {
       currentHeights[i] = lerpDouble(currentHeights[i], floorHeight, 0.18)!;
     }

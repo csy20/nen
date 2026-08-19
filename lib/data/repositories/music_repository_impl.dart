@@ -24,11 +24,11 @@ const _minDurationMs = 30000;
 
 class MusicRepositoryImpl implements MusicRepository {
   final OnAudioQuery _audioQuery;
-  final LinkedHashMap<int, Uint8List?> _albumArtCache =
-      LinkedHashMap<int, Uint8List?>();
+  final LinkedHashMap<String, Uint8List?> _albumArtCache =
+      LinkedHashMap<String, Uint8List?>();
   static const int _maxAlbumArtCacheSize = 64;
-  final Map<int, Future<Uint8List?>> _albumArtRequests =
-      <int, Future<Uint8List?>>{};
+  final Map<String, Future<Uint8List?>> _albumArtRequests =
+      <String, Future<Uint8List?>>{};
   List<SongModel>? _songsCache;
   Future<List<SongModel>>? _songsRequest;
 
@@ -87,30 +87,31 @@ class MusicRepositoryImpl implements MusicRepository {
   }
 
   @override
-  Future<Uint8List?> getAlbumArt(int songId) async {
-    if (_albumArtCache.containsKey(songId)) {
-      _touchCache(songId);
-      return _albumArtCache[songId];
+  Future<Uint8List?> getAlbumArt(int songId, {int size = 96}) async {
+    final key = '$songId:$size';
+    if (_albumArtCache.containsKey(key)) {
+      _touchCache(key);
+      return _albumArtCache[key];
     }
 
-    final inFlight = _albumArtRequests[songId];
+    final inFlight = _albumArtRequests[key];
     if (inFlight != null) {
       return inFlight;
     }
 
     final request = _audioQuery
-        .queryArtwork(songId, ArtworkType.AUDIO, size: 200, quality: 70)
+        .queryArtwork(songId, ArtworkType.AUDIO, size: size, quality: 70)
         .then((art) {
-          _addToCache(songId, art);
-          _albumArtRequests.remove(songId);
+          _addToCache(key, art);
+          _albumArtRequests.remove(key);
           return art;
         })
         .catchError((error) {
-          _albumArtRequests.remove(songId);
+          _albumArtRequests.remove(key);
           throw error;
         });
 
-    _albumArtRequests[songId] = request;
+    _albumArtRequests[key] = request;
     return request;
   }
 
@@ -196,17 +197,17 @@ class MusicRepositoryImpl implements MusicRepository {
     return request;
   }
 
-  void _addToCache(int songId, Uint8List? art) {
+  void _addToCache(String key, Uint8List? art) {
     if (_albumArtCache.length >= _maxAlbumArtCacheSize) {
       _albumArtCache.remove(_albumArtCache.keys.first);
     }
-    _albumArtCache[songId] = art;
+    _albumArtCache[key] = art;
   }
 
-  void _touchCache(int songId) {
-    final art = _albumArtCache.remove(songId);
+  void _touchCache(String key) {
+    final art = _albumArtCache.remove(key);
     if (art != null) {
-      _albumArtCache[songId] = art;
+      _albumArtCache[key] = art;
     }
   }
 

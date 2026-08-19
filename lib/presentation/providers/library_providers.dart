@@ -136,14 +136,21 @@ final albumArtProvider = FutureProvider.autoDispose.family<Uint8List?, int>((
   songId,
 ) {
   ref.watch(libraryRefreshProvider);
-  return ref.watch(musicRepositoryProvider).getAlbumArt(songId);
+  return ref.watch(musicRepositoryProvider).getAlbumArt(songId, size: 96);
 });
+
+final largeAlbumArtProvider = FutureProvider.autoDispose.family<Uint8List?, int>(
+  (ref, songId) {
+    ref.watch(libraryRefreshProvider);
+    return ref.watch(musicRepositoryProvider).getAlbumArt(songId, size: 300);
+  },
+);
 
 final songAccentColorProvider = FutureProvider.autoDispose.family<Color, int>((
   ref,
   songId,
 ) async {
-  final art = await ref.watch(albumArtProvider(songId).future);
+  final art = await ref.watch(largeAlbumArtProvider(songId).future);
   if (art == null || art.isEmpty) {
     return NenTheme.defaultAccent;
   }

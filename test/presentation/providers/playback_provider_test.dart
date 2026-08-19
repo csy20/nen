@@ -29,6 +29,9 @@ class _FakeAudioRepository implements AudioRepository {
   bool get isInitialized => _initialized;
 
   @override
+  bool get isVisualizerLive => false;
+
+  @override
   Duration get currentDuration =>
       playedSongs.isEmpty ? Duration.zero : playedSongs.last.duration;
 
