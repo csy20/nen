@@ -1,7 +1,7 @@
 name: nen
 description: "Nen — Offline music player with real-time audio visualizer."
 publish_to: 'none'
-version: 1.0.4+6
+version: 1.0.5+7
 
 environment:
   sdk: ^3.11.0
