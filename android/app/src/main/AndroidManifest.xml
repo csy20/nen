@@ -13,9 +13,14 @@
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <!-- Notification permission (Android 13+ / API 33) for foreground service -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Playback visualizer (Android Visualizer API, own audio session) -->
+    <!-- Playback visualizer (Android Visualizer API, own audio session).
+         RECORD_AUDIO otherwise implies a required microphone and Play
+         drops tablets/TVs/phones that have no mic. Nen does not need one. -->
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
+    <uses-feature
+        android:name="android.hardware.microphone"
+        android:required="false" />
 
     <application
         android:label="nen"
