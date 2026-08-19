@@ -52,6 +52,10 @@ dependencies:
   # Marquee scrolling text widget
   marquee: ^2.2.3
 
+  # In-app review with Play Store listing fallback
+  in_app_review: ^2.0.12
+  url_launcher: ^6.3.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

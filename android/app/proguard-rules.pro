@@ -12,6 +12,10 @@
 # ── on_audio_query ───────────────────────────────────────────────────
 -keep class com.lucasjosino.on_audio_query.** { *; }
 
+# ── in_app_review (Play In-App Review API) ───────────────────────────
+-keep class com.google.android.play.core.review.** { *; }
+-keep class com.google.android.gms.tasks.** { *; }
+
 # ── General Android ──────────────────────────────────────────────────
 -keep class androidx.lifecycle.** { *; }
 

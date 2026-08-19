@@ -3,6 +3,7 @@ import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../data/services/app_review_service.dart';
 import '../providers/providers.dart';
 import '../theme/nen_theme.dart';
 
@@ -212,10 +213,40 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
 
+          const SizedBox(height: 32),
+
+          _SectionHeader('ABOUT'),
+          _SettingsGroup(
+            children: [
+              _CustomListTile(
+                key: const Key('rate_this_app'),
+                title: 'Rate this app',
+                subtitle: 'Share feedback on Google Play',
+                trailing: Icon(
+                  Icons.star_rounded,
+                  color: colors.textSecondary,
+                ),
+                onTap: () => _rateApp(context),
+              ),
+            ],
+          ),
+
           const SizedBox(height: 48), // Bottom padding
         ],
       ),
     );
+  }
+
+  Future<void> _rateApp(BuildContext context) async {
+    final outcome = await ref.read(appReviewServiceProvider).requestReview();
+    if (!context.mounted) return;
+    if (outcome == AppReviewOutcome.failed) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Unable to open the Play Store listing right now.'),
+        ),
+      );
+    }
   }
 
   Future<void> _rescanMedia(BuildContext context) async {
@@ -269,7 +300,6 @@ class _SettingsGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = NenTheme.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
@@ -382,6 +412,7 @@ class _CustomListTile extends StatelessWidget {
   final Color? titleColor;
 
   const _CustomListTile({
+    super.key,
     required this.title,
     required this.subtitle,
     this.trailing,
