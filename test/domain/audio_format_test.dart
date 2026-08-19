@@ -60,5 +60,49 @@ void main() {
         AudioBackend.soloud,
       );
     });
+
+    test('routes huge files to the system decoder', () {
+      expect(
+        AudioFormat.preferredBackend(
+          extension: 'flac',
+          filePath: '/music/live.flac',
+          fileIsReadable: true,
+          fileSize: AudioFormat.soloudMaxFileBytes + 1,
+        ),
+        AudioBackend.system,
+      );
+    });
+  });
+
+  group('AudioFormat memory safety', () {
+    test('refuses to fully decode library-length tracks into PCM', () {
+      expect(
+        AudioFormat.canSafelyDecodeToMemory(
+          fileSizeBytes: 30 * 1024 * 1024,
+          duration: const Duration(minutes: 4),
+        ),
+        isFalse,
+      );
+      expect(
+        AudioFormat.canSafelyDecodeToMemory(
+          fileSizeBytes: 512 * 1024,
+          duration: const Duration(seconds: 8),
+        ),
+        isTrue,
+      );
+      expect(
+        AudioFormat.canSafelyDecodeToMemory(
+          fileSizeBytes: 0,
+          duration: const Duration(seconds: 5),
+        ),
+        isFalse,
+      );
+    });
+
+    test('estimated PCM for a 90-minute track is around 1 GB', () {
+      final bytes = AudioFormat.estimatedPcmBytes(const Duration(minutes: 90));
+      expect(bytes, greaterThan(900 * 1024 * 1024));
+      expect(bytes, lessThan(1100 * 1024 * 1024));
+    });
   });
 }

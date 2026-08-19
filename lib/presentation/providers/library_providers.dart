@@ -131,12 +131,15 @@ final searchResultsProvider = FutureProvider<List<Song>>((ref) {
 
 // ── Album Art Cache ────────────────────────────────────────────────
 
-final albumArtProvider = FutureProvider.family<Uint8List?, int>((ref, songId) {
+final albumArtProvider = FutureProvider.autoDispose.family<Uint8List?, int>((
+  ref,
+  songId,
+) {
   ref.watch(libraryRefreshProvider);
   return ref.watch(musicRepositoryProvider).getAlbumArt(songId);
 });
 
-final songAccentColorProvider = FutureProvider.family<Color, int>((
+final songAccentColorProvider = FutureProvider.autoDispose.family<Color, int>((
   ref,
   songId,
 ) async {

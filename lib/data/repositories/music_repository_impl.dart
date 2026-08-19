@@ -26,7 +26,7 @@ class MusicRepositoryImpl implements MusicRepository {
   final OnAudioQuery _audioQuery;
   final LinkedHashMap<int, Uint8List?> _albumArtCache =
       LinkedHashMap<int, Uint8List?>();
-  static const int _maxAlbumArtCacheSize = 200;
+  static const int _maxAlbumArtCacheSize = 64;
   final Map<int, Future<Uint8List?>> _albumArtRequests =
       <int, Future<Uint8List?>>{};
   List<SongModel>? _songsCache;
@@ -99,7 +99,7 @@ class MusicRepositoryImpl implements MusicRepository {
     }
 
     final request = _audioQuery
-        .queryArtwork(songId, ArtworkType.AUDIO, size: 512, quality: 80)
+        .queryArtwork(songId, ArtworkType.AUDIO, size: 200, quality: 70)
         .then((art) {
           _addToCache(songId, art);
           _albumArtRequests.remove(songId);

@@ -127,6 +127,8 @@ class AudioRepositoryImpl implements AudioRepository {
       extension: song.fileExtension,
       filePath: song.filePath,
       fileIsReadable: readable,
+      fileSize: _resolvedFileSize(song),
+      duration: song.duration,
     );
     final first = preferred == AudioBackend.soloud
         ? _Backend.soloud
@@ -181,6 +183,8 @@ class AudioRepositoryImpl implements AudioRepository {
       extension: ext,
       filePath: song.filePath,
       fileIsReadable: readable,
+      fileSize: _resolvedFileSize(song),
+      duration: song.duration,
     );
     if (preferred != AudioBackend.soloud || !readable) {
       return;
@@ -190,11 +194,17 @@ class AudioRepositoryImpl implements AudioRepository {
     }
 
     await _disposePreloadedSource();
-    _preloadedSource = await _soloud.loadFile(
-      song.filePath,
-      mode: _loadModeFor(song),
-    );
-    _preloadedFilePath = song.filePath;
+    try {
+      _preloadedSource = await _soloud.loadFile(
+        song.filePath,
+        mode: _loadModeFor(song),
+      );
+      _preloadedFilePath = song.filePath;
+    } catch (e) {
+      debugPrint('preload failed: $e');
+      _preloadedSource = null;
+      _preloadedFilePath = null;
+    }
   }
 
   @override
@@ -311,6 +321,11 @@ class AudioRepositoryImpl implements AudioRepository {
     try {
       _audioData!.updateSamples();
       final raw = _audioData!.getAudioData();
+      // Never copy an unexpectedly huge native buffer into Dart.
+      if (raw.length > 2048) {
+        _fillFftBuffer(0.0);
+        return _fftBuffer;
+      }
       final fftLength = raw.length >= _fftBuffer.length
           ? _fftBuffer.length
           : raw.length;
@@ -580,18 +595,25 @@ class AudioRepositoryImpl implements AudioRepository {
   }
 
   LoadMode _loadModeFor(Song song) {
-    var size = song.fileSize;
-    if (size <= 0 && _isReadableFile(song.filePath)) {
-      try {
-        size = File(song.filePath).lengthSync();
-      } catch (_) {
-        size = 0;
-      }
-    }
-    if (size > 0 && size <= AudioFormat.memoryLoadMaxBytes) {
+    // LoadMode.memory runs on a Dart isolate and decompresses the whole
+    // file to PCM. That is what aborted the process with malloc(~968 MB).
+    if (AudioFormat.canSafelyDecodeToMemory(
+      fileSizeBytes: _resolvedFileSize(song),
+      duration: song.duration,
+    )) {
       return LoadMode.memory;
     }
     return LoadMode.disk;
+  }
+
+  int _resolvedFileSize(Song song) {
+    if (song.fileSize > 0) return song.fileSize;
+    if (!_isReadableFile(song.filePath)) return 0;
+    try {
+      return File(song.filePath).lengthSync();
+    } catch (_) {
+      return 0;
+    }
   }
 
   void _startPositionTracking() {

@@ -7,7 +7,14 @@
 enum AudioBackend { soloud, system }
 
 class AudioFormat {
-  static const int memoryLoadMaxBytes = 40 * 1024 * 1024;
+  /// SoLoud `LoadMode.memory` expands compressed audio to uncompressed PCM.
+  /// A 40 MB MP3/FLAC can become ~1 GB and abort the process (std::bad_alloc).
+  /// Only tiny clips are safe to fully decode in RAM.
+  static const int memoryLoadMaxBytes = 2 * 1024 * 1024;
+  static const int memoryLoadMaxDurationMs = 15000;
+
+  /// Skip SoLoud for giant files; ExoPlayer (just_audio) streams them.
+  static const int soloudMaxFileBytes = 80 * 1024 * 1024;
 
   static const _soloudExtensions = {
     'mp3',
@@ -75,9 +82,14 @@ class AudioFormat {
     required String extension,
     required String filePath,
     required bool fileIsReadable,
+    int fileSize = 0,
+    Duration duration = Duration.zero,
   }) {
     final ext = normalizeExtension(extension, fallbackPath: filePath);
     if (!fileIsReadable) {
+      return AudioBackend.system;
+    }
+    if (!isSoLoudSafe(fileSizeBytes: fileSize, duration: duration)) {
       return AudioBackend.system;
     }
     if (_systemFirstExtensions.contains(ext)) {
@@ -87,6 +99,40 @@ class AudioFormat {
       return AudioBackend.soloud;
     }
     return AudioBackend.system;
+  }
+
+  /// Whether SoLoud may fully decode this file into PCM.
+  ///
+  /// Music-library tracks fail this check on purpose — they must stream.
+  static bool canSafelyDecodeToMemory({
+    required int fileSizeBytes,
+    required Duration duration,
+  }) {
+    if (fileSizeBytes <= 0 || fileSizeBytes > memoryLoadMaxBytes) {
+      return false;
+    }
+    if (duration > const Duration(milliseconds: memoryLoadMaxDurationMs)) {
+      return false;
+    }
+    return true;
+  }
+
+  /// Whether SoLoud should even try this file. Huge WAVs / multi-hour
+  /// recordings belong on the system decoder.
+  static bool isSoLoudSafe({
+    required int fileSizeBytes,
+    required Duration duration,
+  }) {
+    if (fileSizeBytes > soloudMaxFileBytes) return false;
+    if (duration >= const Duration(hours: 4)) return false;
+    return true;
+  }
+
+  /// Rough 48 kHz stereo 16-bit PCM size for [duration].
+  static int estimatedPcmBytes(Duration duration) {
+    final ms = duration.inMilliseconds;
+    if (ms <= 0) return 0;
+    return ms * 48 * 2 * 2;
   }
 
   static AudioBackend fallbackBackend(AudioBackend preferred) {
