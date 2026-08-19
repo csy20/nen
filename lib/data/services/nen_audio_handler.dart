@@ -4,6 +4,7 @@ import 'package:audio_service/audio_service.dart' as as_lib;
 import 'package:audio_session/audio_session.dart';
 import 'package:flutter/foundation.dart';
 
+import '../../domain/audio/audio_format.dart';
 import '../../domain/entities/entities.dart';
 import '../../domain/repositories/audio_repository.dart';
 
@@ -64,10 +65,10 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
     await _audioRepo.play(song);
     _playing = true;
 
-    final decoderDuration = _audioRepo.currentDuration;
-    final duration = decoderDuration > Duration.zero
-        ? decoderDuration
-        : song.duration;
+    final duration = AudioFormat.coalesceDuration(
+      _audioRepo.currentDuration,
+      song.duration,
+    );
 
     mediaItem.add(
       as_lib.MediaItem(

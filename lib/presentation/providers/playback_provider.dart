@@ -82,6 +82,8 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
       queueIndex: idx,
       currentSong: songs[idx],
       isPlaying: true,
+      position: Duration.zero,
+      duration: songs[idx].duration,
     );
     try {
       await _handler.playSong(songs[idx], queue: songs, queueIndex: idx);
@@ -102,6 +104,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
       currentSong: song,
       isPlaying: true,
       position: Duration.zero,
+      duration: song.duration,
     );
     try {
       await _handler.playSong(song);

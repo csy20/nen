@@ -87,6 +87,17 @@ class AudioRepositoryImpl implements AudioRepository {
     _soloud.setVisualizationEnabled(true);
     _audioData = AudioData(GetSamplesKind.linear);
     _soloudReady = true;
+    if (_eqActive) {
+      try {
+        _soloud.filters.equalizerFilter.activate();
+        for (var i = 0; i < 8; i++) {
+          _setEqBandInternal(i, _eqBands[i]);
+        }
+        _setLimiterActive(true);
+      } catch (e) {
+        debugPrint('re-apply EQ after SoLoud init failed: $e');
+      }
+    }
   }
 
   Future<void> _releaseSoLoudEngine() async {
@@ -158,6 +169,22 @@ class AudioRepositoryImpl implements AudioRepository {
     } catch (e) {
       firstError = e;
       debugPrint('primary backend $first failed: $e');
+    }
+
+    if (second == _Backend.soloud &&
+        !AudioFormat.canSafelyDecodeToMemory(
+          fileSizeBytes: _resolvedFileSize(song),
+          duration: song.duration,
+        )) {
+      throw AudioPlaybackException.unsupported(
+        title: song.title,
+        formatLabel: AudioFormat.displayName(
+          AudioFormat.normalizeExtension(
+            song.fileExtension,
+            fallbackPath: song.filePath,
+          ),
+        ),
+      );
     }
 
     try {
@@ -302,7 +329,7 @@ class AudioRepositoryImpl implements AudioRepository {
       return;
     }
     final handle = _currentHandle;
-    if (handle == null) return;
+    if (handle == null || !_soloudReady) return;
     _soloud.seek(handle, position);
     _lastPosition = position;
     _positionController.add(position);
@@ -318,11 +345,13 @@ class AudioRepositoryImpl implements AudioRepository {
         debugPrint('system volume error: $e');
       }
     }
-    for (final handle in _allActiveHandles()) {
-      try {
-        _soloud.setVolume(handle, _volume);
-      } catch (e) {
-        debugPrint('volume error: $e');
+    if (_soloudReady) {
+      for (final handle in _allActiveHandles()) {
+        try {
+          _soloud.setVolume(handle, _volume);
+        } catch (e) {
+          debugPrint('volume error: $e');
+        }
       }
     }
   }
@@ -378,11 +407,13 @@ class AudioRepositoryImpl implements AudioRepository {
         debugPrint('system speed error: $e');
       }
     }
-    for (final handle in _allActiveHandles()) {
-      try {
-        _soloud.setRelativePlaySpeed(handle, _speed);
-      } catch (e) {
-        debugPrint('speed error: $e');
+    if (_soloudReady) {
+      for (final handle in _allActiveHandles()) {
+        try {
+          _soloud.setRelativePlaySpeed(handle, _speed);
+        } catch (e) {
+          debugPrint('speed error: $e');
+        }
       }
     }
   }
@@ -404,26 +435,35 @@ class AudioRepositoryImpl implements AudioRepository {
 
   @override
   Future<void> setEqualizerActive(bool active) async {
-    if (!_initialized) return;
-    if (active && !_eqActive) {
-      _soloud.filters.equalizerFilter.activate();
-      for (int i = 0; i < 8; i++) {
-        _setEqBandInternal(i, _eqBands[i]);
-      }
-      _setLimiterActive(true);
-    } else if (!active && _eqActive) {
-      _soloud.filters.equalizerFilter.deactivate();
-      _setLimiterActive(false);
-    }
     _eqActive = active;
+    // Don't start SoLoud just to toggle EQ while ExoPlayer owns the device.
+    if (!_soloudReady) return;
+    try {
+      if (active) {
+        _soloud.filters.equalizerFilter.activate();
+        for (int i = 0; i < 8; i++) {
+          _setEqBandInternal(i, _eqBands[i]);
+        }
+        _setLimiterActive(true);
+      } else {
+        _soloud.filters.equalizerFilter.deactivate();
+        _setLimiterActive(false);
+      }
+    } catch (e) {
+      debugPrint('setEqualizerActive error: $e');
+    }
   }
 
   @override
   Future<void> setEqualizerBand(int band, double gain) async {
     if (band < 1 || band > 8) return;
     _eqBands[band - 1] = gain.clamp(0.0, 4.0);
-    if (_eqActive && _initialized) {
-      _setEqBandInternal(band - 1, _eqBands[band - 1]);
+    if (_eqActive && _soloudReady) {
+      try {
+        _setEqBandInternal(band - 1, _eqBands[band - 1]);
+      } catch (e) {
+        debugPrint('setEqualizerBand error: $e');
+      }
     }
   }
 
@@ -472,9 +512,13 @@ class AudioRepositoryImpl implements AudioRepository {
     for (int i = 0; i < 8; i++) {
       _eqBands[i] = 1.0;
     }
-    if (_eqActive && _initialized) {
-      for (int i = 0; i < 8; i++) {
-        _setEqBandInternal(i, 1.0);
+    if (_eqActive && _soloudReady) {
+      try {
+        for (int i = 0; i < 8; i++) {
+          _setEqBandInternal(i, 1.0);
+        }
+      } catch (e) {
+        debugPrint('resetEqualizerBands error: $e');
       }
     }
   }
@@ -619,12 +663,11 @@ class AudioRepositoryImpl implements AudioRepository {
       }
     });
     _systemDurationSub = player.durationStream.listen((duration) {
-      if (duration != null && duration > Duration.zero) {
-        if (_currentDuration <= const Duration(seconds: 2) ||
-            duration > _currentDuration) {
-          _currentDuration = duration;
-        }
-      }
+      if (duration == null || duration <= Duration.zero) return;
+      final next = AudioFormat.coalesceDuration(duration, _currentDuration);
+      if (next == _currentDuration) return;
+      _currentDuration = next;
+      _positionController.add(_lastPosition);
     });
   }
 
@@ -700,9 +743,15 @@ class AudioRepositoryImpl implements AudioRepository {
 
         final length = _soloud.getLength(currentSource);
         if (length > Duration.zero) {
-          _currentDuration = length;
+          _currentDuration = AudioFormat.coalesceDuration(
+            length,
+            _currentDuration,
+          );
         }
-        if (position >= length && length > Duration.zero && !_completionFired) {
+        final end = _currentDuration > Duration.zero
+            ? _currentDuration
+            : length;
+        if (position >= end && end > Duration.zero && !_completionFired) {
           _completionFired = true;
           _completionController.add(null);
         }
@@ -723,7 +772,7 @@ class AudioRepositoryImpl implements AudioRepository {
 
   void _applyCurrentHandleSpeed() {
     final currentHandle = _currentHandle;
-    if (currentHandle == null) return;
+    if (currentHandle == null || !_soloudReady) return;
     _soloud.setRelativePlaySpeed(currentHandle, _speed);
   }
 
@@ -732,7 +781,7 @@ class AudioRepositoryImpl implements AudioRepository {
     Duration fadeDuration,
   ) async {
     await Future.delayed(fadeDuration);
-    if (_disposed || !_retiringTracks.remove(track)) {
+    if (_disposed || !_soloudReady || !_retiringTracks.remove(track)) {
       return;
     }
 
@@ -763,16 +812,18 @@ class AudioRepositoryImpl implements AudioRepository {
 
     final retiringTracks = List<_RetiringTrack>.from(_retiringTracks);
     _retiringTracks.clear();
-    for (final track in retiringTracks) {
-      try {
-        await _soloud.stop(track.handle);
-      } catch (e) {
-        debugPrint('stopAll retiring track stop error: $e');
-      }
-      try {
-        await _soloud.disposeSource(track.source);
-      } catch (e) {
-        debugPrint('stopAll retiring track dispose error: $e');
+    if (_soloudReady) {
+      for (final track in retiringTracks) {
+        try {
+          await _soloud.stop(track.handle);
+        } catch (e) {
+          debugPrint('stopAll retiring track stop error: $e');
+        }
+        try {
+          await _soloud.disposeSource(track.source);
+        } catch (e) {
+          debugPrint('stopAll retiring track dispose error: $e');
+        }
       }
     }
     if (_activeBackend != _Backend.none) {
@@ -789,6 +840,7 @@ class AudioRepositoryImpl implements AudioRepository {
       _activeBackend = _Backend.none;
     }
 
+    if (!_soloudReady) return;
     if (currentHandle != null) {
       try {
         await _soloud.stop(currentHandle);
@@ -834,14 +886,15 @@ class AudioRepositoryImpl implements AudioRepository {
   }
 
   Future<void> _disposePreloadedSource() async {
-    if (_preloadedSource == null) return;
+    final source = _preloadedSource;
+    _preloadedSource = null;
+    _preloadedFilePath = null;
+    if (source == null || !_soloudReady) return;
     try {
-      await _soloud.disposeSource(_preloadedSource!);
+      await _soloud.disposeSource(source);
     } catch (e) {
       debugPrint('disposePreloadedSource error: $e');
     }
-    _preloadedSource = null;
-    _preloadedFilePath = null;
   }
 
   bool _isReadableFile(String path) {
