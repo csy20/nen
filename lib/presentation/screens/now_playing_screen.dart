@@ -347,7 +347,7 @@ class NowPlayingScreen extends ConsumerWidget {
     final position = playback.position;
     final duration = playback.duration > Duration.zero
         ? playback.duration
-        : const Duration(seconds: 1);
+        : (playback.currentSong?.duration ?? const Duration(seconds: 1));
 
     final progressFraction = (position.inMilliseconds / duration.inMilliseconds)
         .clamp(0.0, 1.0);

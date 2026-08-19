@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:audio_service/audio_service.dart' as audio_svc;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../domain/audio/audio_format.dart';
 import '../../domain/audio/audio_playback_exception.dart';
 import '../../domain/entities/entities.dart';
 import '../../data/services/nen_audio_handler.dart';
@@ -54,9 +55,12 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
     _handler.onSkipToPrevious = previous;
 
     _pbStateSub = _handler.playbackState.listen((ps) {
+      final decoded = _handler.currentDuration;
+      final metadata = state.currentSong?.duration ?? Duration.zero;
       state = state.copyWith(
         position: ps.updatePosition,
         isPlaying: ps.playing,
+        duration: AudioFormat.coalesceDuration(decoded, metadata),
       );
       _maybeStartCrossfade(ps.updatePosition);
     });
@@ -354,7 +358,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
   void _updateDuration(Song song) {
     final decoded = _handler.currentDuration;
     state = state.copyWith(
-      duration: decoded > Duration.zero ? decoded : song.duration,
+      duration: AudioFormat.coalesceDuration(decoded, song.duration),
     );
     _preloadNextTrack();
   }

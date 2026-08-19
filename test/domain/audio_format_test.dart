@@ -11,18 +11,33 @@ void main() {
   });
 
   group('AudioFormat.preferredBackend', () {
-    test('uses SoLoud for common native formats when the file is readable', () {
+    test('uses SoLoud only for short clips that fit in memory', () {
       for (final ext in ['mp3', 'wav', 'flac', 'ogg', 'opus']) {
         expect(
           AudioFormat.preferredBackend(
             extension: ext,
             filePath: '/music/track.$ext',
             fileIsReadable: true,
+            fileSize: 512 * 1024,
+            duration: const Duration(seconds: 8),
           ),
           AudioBackend.soloud,
           reason: ext,
         );
       }
+    });
+
+    test('uses ExoPlayer for library-length MP3/FLAC talks', () {
+      expect(
+        AudioFormat.preferredBackend(
+          extension: 'mp3',
+          filePath: '/music/osho-maha-geeta-11.mp3',
+          fileIsReadable: true,
+          fileSize: 25 * 1024 * 1024,
+          duration: const Duration(minutes: 90),
+        ),
+        AudioBackend.system,
+      );
     });
 
     test('uses the system decoder for containers SoLoud cannot handle', () {
@@ -103,6 +118,23 @@ void main() {
       final bytes = AudioFormat.estimatedPcmBytes(const Duration(minutes: 90));
       expect(bytes, greaterThan(900 * 1024 * 1024));
       expect(bytes, lessThan(1100 * 1024 * 1024));
+    });
+
+    test('coalesceDuration keeps metadata when decoder reports ~1s', () {
+      expect(
+        AudioFormat.coalesceDuration(
+          const Duration(seconds: 1),
+          const Duration(minutes: 90),
+        ),
+        const Duration(minutes: 90),
+      );
+      expect(
+        AudioFormat.coalesceDuration(
+          const Duration(minutes: 4),
+          const Duration(minutes: 4, seconds: 2),
+        ),
+        const Duration(minutes: 4),
+      );
     });
   });
 }

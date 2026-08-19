@@ -42,6 +42,7 @@ class AudioRepositoryImpl implements AudioRepository {
   StreamSubscription<Duration?>? _systemDurationSub;
 
   bool _initialized = false;
+  bool _soloudReady = false;
   bool _disposed = false;
   bool _completionFired = false;
   bool _transitionInProgress = false;
@@ -62,7 +63,13 @@ class AudioRepositoryImpl implements AudioRepository {
 
   @override
   Future<void> initialize() async {
-    if (_initialized) return;
+    // just_audio/ExoPlayer does not need SoLoud. Starting SoLoud here
+    // grabs a low-latency AAudio stream and can silence library playback.
+    _initialized = true;
+  }
+
+  Future<void> _ensureSoLoud() async {
+    if (_soloudReady) return;
     var inited = false;
     try {
       await _soloud.init(
@@ -79,7 +86,21 @@ class AudioRepositoryImpl implements AudioRepository {
     }
     _soloud.setVisualizationEnabled(true);
     _audioData = AudioData(GetSamplesKind.linear);
-    _initialized = true;
+    _soloudReady = true;
+  }
+
+  Future<void> _releaseSoLoudEngine() async {
+    if (!_soloudReady) return;
+    await _stopCurrentTrack();
+    await _disposePreloadedSource();
+    _audioData?.dispose();
+    _audioData = null;
+    try {
+      _soloud.deinit();
+    } catch (e) {
+      debugPrint('SoLoud deinit error: $e');
+    }
+    _soloudReady = false;
   }
 
   @override
@@ -88,15 +109,8 @@ class AudioRepositoryImpl implements AudioRepository {
     _initialized = false;
     _positionTimer?.cancel();
     await _stopAllTracks();
-    await _disposePreloadedSource();
     await _disposeSystemPlayer();
-    _audioData?.dispose();
-    _audioData = null;
-    try {
-      _soloud.deinit();
-    } catch (e) {
-      debugPrint('SoLoud deinit error: $e');
-    }
+    await _releaseSoLoudEngine();
     await _positionController.close();
     await _completionController.close();
   }
@@ -174,6 +188,12 @@ class AudioRepositoryImpl implements AudioRepository {
   @override
   Future<void> preload(Song song) async {
     if (!_initialized) await initialize();
+    if (!AudioFormat.canSafelyDecodeToMemory(
+      fileSizeBytes: _resolvedFileSize(song),
+      duration: song.duration,
+    )) {
+      return;
+    }
     final ext = AudioFormat.normalizeExtension(
       song.fileExtension,
       fallbackPath: song.filePath,
@@ -195,6 +215,7 @@ class AudioRepositoryImpl implements AudioRepository {
 
     await _disposePreloadedSource();
     try {
+      await _ensureSoLoud();
       _preloadedSource = await _soloud.loadFile(
         song.filePath,
         mode: _loadModeFor(song),
@@ -232,11 +253,13 @@ class AudioRepositoryImpl implements AudioRepository {
         debugPrint('system pause error: $e');
       }
     }
-    for (final handle in _allActiveHandles()) {
-      try {
-        _soloud.setPause(handle, true);
-      } catch (e) {
-        debugPrint('pause error: $e');
+    if (_soloudReady) {
+      for (final handle in _allActiveHandles()) {
+        try {
+          _soloud.setPause(handle, true);
+        } catch (e) {
+          debugPrint('pause error: $e');
+        }
       }
     }
   }
@@ -250,11 +273,13 @@ class AudioRepositoryImpl implements AudioRepository {
         debugPrint('system resume error: $e');
       }
     }
-    for (final handle in _allActiveHandles()) {
-      try {
-        _soloud.setPause(handle, false);
-      } catch (e) {
-        debugPrint('resume error: $e');
+    if (_soloudReady) {
+      for (final handle in _allActiveHandles()) {
+        try {
+          _soloud.setPause(handle, false);
+        } catch (e) {
+          debugPrint('resume error: $e');
+        }
       }
     }
   }
@@ -311,7 +336,7 @@ class AudioRepositoryImpl implements AudioRepository {
   @override
   List<double> getFFTData() {
     if (_disposed ||
-        !_initialized ||
+        !_soloudReady ||
         _audioData == null ||
         _activeBackend != _Backend.soloud) {
       _fillFftBuffer(0.0);
@@ -458,6 +483,15 @@ class AudioRepositoryImpl implements AudioRepository {
   List<double> getEqualizerBands() => List.unmodifiable(_eqBands);
 
   Future<void> _playWithSoLoud(Song song) async {
+    if (!AudioFormat.canSafelyDecodeToMemory(
+      fileSizeBytes: _resolvedFileSize(song),
+      duration: song.duration,
+    )) {
+      throw AudioPlaybackException(
+        'SoLoud skipped for streamed library track',
+        formatLabel: AudioFormat.displayName(song.fileExtension),
+      );
+    }
     if (!_isReadableFile(song.filePath)) {
       throw AudioPlaybackException(
         'No readable file for "${song.title}"',
@@ -465,11 +499,15 @@ class AudioRepositoryImpl implements AudioRepository {
       );
     }
     await _stopSystemPlayback();
+    await _ensureSoLoud();
     final nextSource = await _takeOrLoadSource(song);
-    await _playSoLoudSource(nextSource);
+    await _playSoLoudSource(nextSource, metadataDuration: song.duration);
   }
 
-  Future<void> _playSoLoudSource(AudioSource nextSource) async {
+  Future<void> _playSoLoudSource(
+    AudioSource nextSource, {
+    Duration metadataDuration = Duration.zero,
+  }) async {
     final canCrossfade = _shouldCrossfadeCurrentTrack();
     final previousHandle = _currentHandle;
     final previousSource = _currentSource;
@@ -482,7 +520,10 @@ class AudioRepositoryImpl implements AudioRepository {
       _activeBackend = _Backend.soloud;
       _completionFired = false;
       _lastPosition = Duration.zero;
-      _currentDuration = _safeSoLoudLength(nextSource);
+      _currentDuration = AudioFormat.coalesceDuration(
+        _safeSoLoudLength(nextSource),
+        metadataDuration,
+      );
       _applyCurrentHandleSpeed();
       _startPositionTracking();
       _soloud.fadeVolume(nextHandle, _volume, fadeDuration);
@@ -509,36 +550,53 @@ class AudioRepositoryImpl implements AudioRepository {
     _activeBackend = _Backend.soloud;
     _completionFired = false;
     _lastPosition = Duration.zero;
-    _currentDuration = _safeSoLoudLength(nextSource);
+    _currentDuration = AudioFormat.coalesceDuration(
+      _safeSoLoudLength(nextSource),
+      metadataDuration,
+    );
     _applyCurrentHandleSpeed();
     _startPositionTracking();
   }
 
   Future<void> _playWithSystem(Song song) async {
     await _stopAllTracks();
+    await _releaseSoLoudEngine();
     _ensureSystemPlayer();
     final player = _systemPlayer!;
-    Duration? duration;
-    if (_isReadableFile(song.filePath)) {
-      duration = await player.setFilePath(song.filePath);
-    } else if (song.uri.isNotEmpty) {
-      duration = await player.setAudioSource(
-        ja.AudioSource.uri(Uri.parse(song.uri)),
-      );
-    } else {
-      throw AudioPlaybackException(
-        'No playable path or URI for "${song.title}"',
-        formatLabel: AudioFormat.displayName(song.fileExtension),
-      );
-    }
+    final duration = await _setSystemSource(player, song);
     await player.setVolume(_volume);
     await player.setSpeed(_speed);
     await player.play();
     _activeBackend = _Backend.system;
     _completionFired = false;
     _lastPosition = Duration.zero;
-    _currentDuration = duration ?? song.duration;
+    _currentDuration = AudioFormat.coalesceDuration(
+      duration ?? Duration.zero,
+      song.duration,
+    );
     _positionController.add(Duration.zero);
+  }
+
+  Future<Duration?> _setSystemSource(ja.AudioPlayer player, Song song) async {
+    Object? pathError;
+    if (_isReadableFile(song.filePath)) {
+      try {
+        return await player.setFilePath(song.filePath);
+      } catch (e) {
+        pathError = e;
+        debugPrint('setFilePath failed: $e');
+      }
+    }
+    if (song.uri.isNotEmpty) {
+      return player.setAudioSource(ja.AudioSource.uri(Uri.parse(song.uri)));
+    }
+    if (pathError != null) {
+      throw pathError;
+    }
+    throw AudioPlaybackException(
+      'No playable path or URI for "${song.title}"',
+      formatLabel: AudioFormat.displayName(song.fileExtension),
+    );
   }
 
   void _ensureSystemPlayer() {
@@ -562,7 +620,10 @@ class AudioRepositoryImpl implements AudioRepository {
     });
     _systemDurationSub = player.durationStream.listen((duration) {
       if (duration != null && duration > Duration.zero) {
-        _currentDuration = duration;
+        if (_currentDuration <= const Duration(seconds: 2) ||
+            duration > _currentDuration) {
+          _currentDuration = duration;
+        }
       }
     });
   }

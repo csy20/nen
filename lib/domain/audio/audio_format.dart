@@ -92,6 +92,11 @@ class AudioFormat {
     if (!isSoLoudSafe(fileSizeBytes: fileSize, duration: duration)) {
       return AudioBackend.system;
     }
+    // Disk-streamed MP3/FLAC in SoLoud often reports ~1s length and
+    // produces no audible output. Library tracks go to ExoPlayer.
+    if (!canSafelyDecodeToMemory(fileSizeBytes: fileSize, duration: duration)) {
+      return AudioBackend.system;
+    }
     if (_systemFirstExtensions.contains(ext)) {
       return AudioBackend.system;
     }
@@ -126,6 +131,17 @@ class AudioFormat {
     if (fileSizeBytes > soloudMaxFileBytes) return false;
     if (duration >= const Duration(hours: 4)) return false;
     return true;
+  }
+
+  /// Prefer MediaStore duration when a decoder reports a tiny length
+  /// for a long track (SoLoud disk MP3s do this).
+  static Duration coalesceDuration(Duration decoded, Duration metadata) {
+    if (decoded <= const Duration(seconds: 2) &&
+        metadata > const Duration(seconds: 5)) {
+      return metadata;
+    }
+    if (decoded > Duration.zero) return decoded;
+    return metadata;
   }
 
   /// Rough 48 kHz stereo 16-bit PCM size for [duration].
