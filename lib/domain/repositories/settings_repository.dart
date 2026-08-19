@@ -36,4 +36,8 @@ abstract class SettingsRepository {
   Future<void> setEqualizerActive(bool value);
   Future<List<double>> getEqualizerBands();
   Future<void> setEqualizerBands(List<double> bands);
+
+  // First-launch onboarding
+  Future<bool> getHasSeenOnboarding();
+  Future<void> setHasSeenOnboarding(bool value);
 }

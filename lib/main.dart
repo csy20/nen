@@ -10,7 +10,7 @@ import 'presentation/providers/di_providers.dart';
 import 'presentation/providers/playback_provider.dart';
 import 'presentation/providers/playlist_provider.dart';
 import 'presentation/providers/settings_provider.dart';
-import 'presentation/screens/permission_screen.dart';
+import 'presentation/screens/startup_gate.dart';
 import 'presentation/theme/nen_theme.dart';
 
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
@@ -154,7 +154,7 @@ class _NenAppState extends ConsumerState<NenApp> {
       theme: NenTheme.buildLight(accentColor: settings.customAccentColor),
       darkTheme: NenTheme.buildDark(accentColor: settings.customAccentColor),
       themeMode: settings.flutterThemeMode,
-      home: const PermissionScreen(),
+      home: const StartupGate(),
     );
   }
 }

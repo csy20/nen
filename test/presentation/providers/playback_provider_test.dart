@@ -224,6 +224,12 @@ class _FakeSettingsRepository implements SettingsRepository {
 
   @override
   Future<void> setEqualizerBands(List<double> bands) async {}
+
+  @override
+  Future<bool> getHasSeenOnboarding() async => false;
+
+  @override
+  Future<void> setHasSeenOnboarding(bool value) async {}
 }
 
 const _songA = Song(

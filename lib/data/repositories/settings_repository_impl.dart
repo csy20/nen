@@ -16,6 +16,7 @@ class SettingsRepositoryImpl implements SettingsRepository {
   static const _recentSongIdsKey = 'recent_song_ids';
   static const _eqActiveKey = 'eq_active';
   static const _eqBandsKey = 'eq_bands';
+  static const _hasSeenOnboardingKey = 'has_seen_onboarding';
 
   SharedPreferences? _cachedPrefs;
 
@@ -197,5 +198,17 @@ class SettingsRepositoryImpl implements SettingsRepository {
       _eqBandsKey,
       bands.map((e) => e.toString()).toList(),
     );
+  }
+
+  @override
+  Future<bool> getHasSeenOnboarding() async {
+    final prefs = await _prefs;
+    return prefs.getBool(_hasSeenOnboardingKey) ?? false;
+  }
+
+  @override
+  Future<void> setHasSeenOnboarding(bool value) async {
+    final prefs = await _prefs;
+    await prefs.setBool(_hasSeenOnboardingKey, value);
   }
 }

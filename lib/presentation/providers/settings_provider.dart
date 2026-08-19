@@ -135,6 +135,11 @@ final settingsProvider = StateNotifierProvider<SettingsNotifier, SettingsState>(
   },
 );
 
+/// Whether the first-launch onboarding walkthrough has been completed.
+final hasSeenOnboardingProvider = FutureProvider<bool>((ref) {
+  return ref.read(settingsRepositoryProvider).getHasSeenOnboarding();
+});
+
 // ── Favorites Provider ─────────────────────────────────────────────
 
 class FavoritesNotifier extends StateNotifier<Set<int>> {
