@@ -136,9 +136,13 @@ final settingsProvider = StateNotifierProvider<SettingsNotifier, SettingsState>(
 );
 
 /// Whether the first-launch onboarding walkthrough has been completed.
-final hasSeenOnboardingProvider = FutureProvider<bool>((ref) {
-  return ref.read(settingsRepositoryProvider).getHasSeenOnboarding();
-});
+///
+/// Overridden in `main()` with the value read from disk *before* the first
+/// frame so StartupGate does not flash onboarding on every launch.
+final hasSeenOnboardingProvider = StateProvider<bool>((ref) => false);
+
+/// Audio library permission already granted. Same preload pattern as above.
+final hasAudioPermissionProvider = StateProvider<bool>((ref) => false);
 
 // ── Favorites Provider ─────────────────────────────────────────────
 

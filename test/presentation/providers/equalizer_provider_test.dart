@@ -176,6 +176,12 @@ class _FakeSettingsRepository implements SettingsRepository {
 
   @override
   Future<void> setHasSeenOnboarding(bool value) async {}
+
+  @override
+  Future<LastPlaybackSession?> getLastPlaybackSession() async => null;
+
+  @override
+  Future<void> setLastPlaybackSession(LastPlaybackSession? session) async {}
 }
 
 void main() {

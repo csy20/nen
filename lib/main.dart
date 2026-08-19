@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'data/repositories/audio_repository_impl.dart';
 import 'data/repositories/music_repository_impl.dart';
+import 'data/repositories/settings_repository_impl.dart';
 import 'data/services/nen_audio_handler.dart';
+import 'data/services/permission_service.dart';
 import 'presentation/providers/di_providers.dart';
 import 'presentation/providers/playback_provider.dart';
 import 'presentation/providers/playlist_provider.dart';
@@ -43,9 +45,14 @@ void main() async {
     // Shader may not be available on all platforms
   }
 
-  // Initialize background audio service
+  // Initialize background audio service and cold-start flags before the
+  // first frame so onboarding/permission never flash on a returning user.
   final audioRepo = AudioRepositoryImpl();
   final musicRepo = MusicRepositoryImpl();
+  final settingsRepo = SettingsRepositoryImpl();
+  final permissionService = PermissionService();
+  final hasSeenOnboarding = await settingsRepo.getHasSeenOnboarding();
+  final hasAudioPermission = await permissionService.hasAudioPermission();
   final globalAudioHandler = await _initAudioHandlerWithFallback(
     audioRepo,
     musicRepo,
@@ -56,7 +63,11 @@ void main() async {
       overrides: [
         audioRepositoryProvider.overrideWithValue(audioRepo),
         musicRepositoryProvider.overrideWithValue(musicRepo),
+        settingsRepositoryProvider.overrideWithValue(settingsRepo),
+        permissionServiceProvider.overrideWithValue(permissionService),
         audioHandlerProvider.overrideWithValue(globalAudioHandler),
+        hasSeenOnboardingProvider.overrideWith((ref) => hasSeenOnboarding),
+        hasAudioPermissionProvider.overrideWith((ref) => hasAudioPermission),
       ],
       child: const NenApp(),
     ),

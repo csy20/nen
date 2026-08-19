@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nen/data/services/permission_service.dart';
 import 'package:nen/domain/repositories/settings_repository.dart';
 import 'package:nen/presentation/providers/di_providers.dart';
+import 'package:nen/presentation/providers/settings_provider.dart';
 import 'package:nen/presentation/screens/onboarding_screen.dart';
 import 'package:nen/presentation/screens/startup_gate.dart';
 import 'package:nen/presentation/theme/nen_theme.dart';
@@ -97,6 +98,12 @@ class _FakeSettingsRepository implements SettingsRepository {
 
   @override
   Future<void> setEqualizerBands(List<double> bands) async {}
+
+  @override
+  Future<LastPlaybackSession?> getLastPlaybackSession() async => null;
+
+  @override
+  Future<void> setLastPlaybackSession(LastPlaybackSession? session) async {}
 }
 
 class _DeniedPermissionService extends PermissionService {
@@ -111,12 +118,16 @@ Widget _wrap(
   Widget child, {
   _FakeSettingsRepository? repo,
   PermissionService? permissionService,
+  bool hasSeenOnboarding = false,
+  bool hasAudioPermission = false,
 }) {
   return ProviderScope(
     overrides: [
       if (repo != null) settingsRepositoryProvider.overrideWithValue(repo),
       if (permissionService != null)
         permissionServiceProvider.overrideWithValue(permissionService),
+      hasSeenOnboardingProvider.overrideWith((ref) => hasSeenOnboarding),
+      hasAudioPermissionProvider.overrideWith((ref) => hasAudioPermission),
     ],
     child: MaterialApp(theme: NenTheme.buildDark(), home: child),
   );
@@ -223,13 +234,30 @@ void main() {
         const StartupGate(),
         repo: repo,
         permissionService: _DeniedPermissionService(),
+        hasSeenOnboarding: true,
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump();
 
     expect(find.text('Welcome to nen'), findsNothing);
     expect(find.text('Grant Permission'), findsOneWidget);
   });
+
+  testWidgets('StartupGate does not flash onboarding when already completed', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      _wrap(
+        const StartupGate(),
+        permissionService: _DeniedPermissionService(),
+        hasSeenOnboarding: true,
+      ),
+    );
+
+    expect(find.text('Welcome to nen'), findsNothing);
+    expect(find.byKey(const Key('onboarding_skip')), findsNothing);
+  });
+
 }
 
 void _noop() {}

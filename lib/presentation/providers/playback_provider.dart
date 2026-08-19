@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../domain/audio/audio_format.dart';
 import '../../domain/audio/audio_playback_exception.dart';
 import '../../domain/entities/entities.dart';
+import '../../domain/repositories/settings_repository.dart';
 import '../../data/services/nen_audio_handler.dart';
 import 'di_providers.dart';
 import 'settings_provider.dart';
@@ -48,7 +49,9 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
   int? _crossfadeTriggeredSongId;
   bool _completionTransitionInFlight = false;
   Timer? _persistDebounce;
+  Timer? _sessionPersistDebounce;
   int _playRequestId = 0;
+  bool _engineHasTrack = false;
 
   PlaybackNotifier(this._handler, this._ref) : super(const PlaybackState()) {
     _handler.onCompletion = _handleSongCompletion;
@@ -64,6 +67,9 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
         duration: AudioFormat.coalesceDuration(decoded, metadata),
       );
       _maybeStartCrossfade(ps.updatePosition);
+      if (state.currentSong != null) {
+        _persistSession();
+      }
     });
 
     _repeatModeSub = _handler.repeatModeStream.listen((repeatMode) {
@@ -87,6 +93,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
       position: Duration.zero,
       duration: song.duration,
     );
+    _persistSession();
     unawaited(_runPlay(requestId, song, queue: songs, queueIndex: idx));
   }
 
@@ -101,6 +108,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
       position: Duration.zero,
       duration: song.duration,
     );
+    _persistSession();
     unawaited(_runPlay(requestId, song));
   }
 
@@ -109,18 +117,28 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
     Song song, {
     List<Song>? queue,
     int queueIndex = 0,
+    Duration? resumeAt,
   }) async {
     try {
       await _handler.playSong(song, queue: queue, queueIndex: queueIndex);
       if (requestId != _playRequestId) return;
+      _engineHasTrack = true;
+      if (resumeAt != null && resumeAt > Duration.zero) {
+        await _handler.seek(resumeAt);
+        if (requestId != _playRequestId) return;
+        state = state.copyWith(position: resumeAt);
+      }
       _updateDuration(song);
       _trackRecentlyPlayed(song);
+      _persistSession();
     } on PlaybackSupersededException {
       return;
     } catch (e) {
       if (requestId != _playRequestId) return;
+      _engineHasTrack = false;
       _emitError(_playErrorMessage(e, song.title));
       state = state.copyWith(isPlaying: false);
+      _persistSession();
     }
   }
 
@@ -128,6 +146,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
     try {
       await _handler.pause();
       state = state.copyWith(isPlaying: false);
+      _persistSession();
     } catch (e) {
       _emitError('Failed to pause');
     }
@@ -135,8 +154,22 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
 
   Future<void> resume() async {
     try {
+      if (!_engineHasTrack && state.currentSong != null) {
+        final requestId = ++_playRequestId;
+        _crossfadeTriggeredSongId = null;
+        state = state.copyWith(isPlaying: true);
+        await _runPlay(
+          requestId,
+          state.currentSong!,
+          queue: state.queue,
+          queueIndex: state.queueIndex,
+          resumeAt: state.position,
+        );
+        return;
+      }
       await _handler.play();
       state = state.copyWith(isPlaying: true);
+      _persistSession();
     } catch (e) {
       _emitError('Failed to resume');
     }
@@ -154,6 +187,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
     _crossfadeTriggeredSongId = null;
     await _handler.seek(position);
     state = state.copyWith(position: position);
+    _persistSession();
   }
 
   Future<void> next() async {
@@ -194,6 +228,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
       position: Duration.zero,
       duration: song.duration,
     );
+    _persistSession();
     unawaited(_runPlay(requestId, song, queue: state.queue, queueIndex: nextIndex));
   }
 
@@ -224,13 +259,16 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
       position: Duration.zero,
       duration: song.duration,
     );
+    _persistSession();
     unawaited(_runPlay(requestId, song, queue: state.queue, queueIndex: prevIndex));
   }
 
   Future<void> stop() async {
     _playRequestId++;
     _crossfadeTriggeredSongId = null;
+    _engineHasTrack = false;
     state = state.copyWith(isPlaying: false, position: Duration.zero);
+    _persistSession();
     unawaited(() async {
       try {
         await _handler.stop();
@@ -454,19 +492,111 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
     await _handler.setCrossfadeEnabled(crossfadeEnabled);
     await _handler.setCrossfadeDuration(Duration(seconds: crossfadeDuration));
 
-    final recentIds = await settingsRepo.getRecentSongIds();
-    if (recentIds.isNotEmpty) {
-      final lastId = recentIds.first;
-      final songs = await _ref.read(getSongsUseCaseProvider)();
-      final lastSong = songs.where((s) => s.id == lastId).firstOrNull;
+    if (state.currentSong != null) return;
 
-      if (lastSong != null && state.currentSong == null && !state.isPlaying) {
-        state = state.copyWith(
-          currentSong: lastSong,
-          queue: [lastSong],
-          queueIndex: 0,
+    try {
+      await _restoreLastSession(settingsRepo);
+    } catch (e) {
+      debugPrint('restore last session error: $e');
+    }
+  }
+
+  Future<void> _restoreLastSession(SettingsRepository settingsRepo) async {
+    List<Song> library = const [];
+    try {
+      library = await _ref.read(getSongsUseCaseProvider)();
+    } catch (e) {
+      debugPrint('restore session library error: $e');
+      return;
+    }
+    if (library.isEmpty || state.currentSong != null) return;
+
+    final byId = <int, Song>{for (final song in library) song.id: song};
+    final session = await settingsRepo.getLastPlaybackSession();
+
+    var queue = <Song>[];
+    var index = 0;
+    var position = Duration.zero;
+    var wasPlaying = false;
+
+    if (session != null && session.queueIds.isNotEmpty) {
+      queue = [
+        for (final id in session.queueIds)
+          if (byId[id] != null) byId[id]!,
+      ];
+      if (queue.isNotEmpty) {
+        final clamped = session.queueIndex.clamp(0, session.queueIds.length - 1);
+        final targetId = session.queueIds[clamped];
+        final found = queue.indexWhere((s) => s.id == targetId);
+        index = found >= 0 ? found : 0;
+        final maxMs = queue[index].duration.inMilliseconds;
+        position = Duration(
+          milliseconds: session.positionMs.clamp(0, maxMs > 0 ? maxMs : session.positionMs),
         );
+        wasPlaying = session.wasPlaying;
       }
+    }
+
+    if (queue.isEmpty) {
+      final recentIds = await settingsRepo.getRecentSongIds();
+      if (recentIds.isEmpty) return;
+      final lastSong = byId[recentIds.first];
+      if (lastSong == null) return;
+      queue = [lastSong];
+    }
+
+    if (state.currentSong != null) return;
+    final song = queue[index];
+    state = state.copyWith(
+      currentSong: song,
+      queue: queue,
+      queueIndex: index,
+      position: position,
+      duration: song.duration,
+      isPlaying: false,
+    );
+    _engineHasTrack = false;
+
+    if (wasPlaying) {
+      final requestId = ++_playRequestId;
+      unawaited(
+        _runPlay(
+          requestId,
+          song,
+          queue: queue,
+          queueIndex: index,
+          resumeAt: position,
+        ),
+      );
+      state = state.copyWith(isPlaying: true);
+    }
+  }
+
+  void _persistSession() {
+    _sessionPersistDebounce?.cancel();
+    _sessionPersistDebounce = Timer(const Duration(milliseconds: 400), () {
+      unawaited(_writeSession());
+    });
+  }
+
+  Future<void> _writeSession() async {
+    final song = state.currentSong;
+    try {
+      final repo = _ref.read(settingsRepositoryProvider);
+      if (song == null || state.queue.isEmpty) {
+        await repo.setLastPlaybackSession(null);
+        return;
+      }
+      await repo.setLastPlaybackSession(
+        LastPlaybackSession(
+          queueIds: [for (final item in state.queue) item.id],
+          queueIndex: state.queueIndex.clamp(0, state.queue.length - 1),
+          positionMs: state.position.inMilliseconds,
+          wasPlaying: state.isPlaying,
+        ),
+      );
+    } catch (e) {
+      debugPrint('persist session error: $e');
     }
   }
 
@@ -524,6 +654,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
     _pbStateSub?.cancel();
     _repeatModeSub?.cancel();
     _persistDebounce?.cancel();
+    _sessionPersistDebounce?.cancel();
     super.dispose();
   }
 }

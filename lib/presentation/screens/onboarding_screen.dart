@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/di_providers.dart';
 import '../providers/settings_provider.dart';
 import '../theme/nen_theme.dart';
-import 'permission_screen.dart';
 
 class _OnboardingPageData {
   const _OnboardingPageData({
@@ -50,7 +49,7 @@ class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key, this.onCompleted});
 
   /// Invoked after the onboarding flag is persisted.
-  /// If null, navigates to [PermissionScreen].
+  /// If null, [StartupGate] switches to the next screen.
   final VoidCallback? onCompleted;
 
   @override
@@ -75,27 +74,8 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     setState(() => _completing = true);
     try {
       await ref.read(settingsRepositoryProvider).setHasSeenOnboarding(true);
-      ref.invalidate(hasSeenOnboardingProvider);
-      if (widget.onCompleted != null) {
-        widget.onCompleted!();
-        return;
-      }
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              const PermissionScreen(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-              FadeTransition(
-                opacity: CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOut,
-                ),
-                child: child,
-              ),
-          transitionDuration: const Duration(milliseconds: 500),
-        ),
-      );
+      ref.read(hasSeenOnboardingProvider.notifier).state = true;
+      widget.onCompleted?.call();
     } catch (_) {
       if (mounted) setState(() => _completing = false);
     }

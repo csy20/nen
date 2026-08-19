@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:audio_service/audio_service.dart' as audio_svc;
 import 'package:flutter_test/flutter_test.dart';
@@ -233,6 +234,52 @@ class _FakeSettingsRepository implements SettingsRepository {
 
   @override
   Future<void> setHasSeenOnboarding(bool value) async {}
+
+  LastPlaybackSession? lastSession;
+
+  @override
+  Future<LastPlaybackSession?> getLastPlaybackSession() async => lastSession;
+
+  @override
+  Future<void> setLastPlaybackSession(LastPlaybackSession? session) async {
+    lastSession = session;
+  }
+}
+
+class _FakeMusicRepository implements MusicRepository {
+  List<Song> songs;
+
+  _FakeMusicRepository(this.songs);
+
+  @override
+  Future<List<Album>> getAlbums() async => const [];
+
+  @override
+  Future<Uint8List?> getAlbumArt(int songId, {int size = 96}) async => null;
+
+  @override
+  Future<List<Artist>> getArtists() async => const [];
+
+  @override
+  Future<List<String>> getFolders() async => const [];
+
+  @override
+  Future<List<Song>> getSongs() async => songs;
+
+  @override
+  Future<List<Song>> getSongsByAlbum(int albumId) async => const [];
+
+  @override
+  Future<List<Song>> getSongsByArtist(int artistId) async => const [];
+
+  @override
+  Future<List<Song>> getSongsByFolder(String path) async => const [];
+
+  @override
+  Future<void> rescanMedia() async {}
+
+  @override
+  Future<List<Song>> searchSongs(String query) async => const [];
 }
 
 const _songA = Song(
@@ -414,6 +461,48 @@ void main() {
       expect(playback.currentSong, _songB);
       expect(audioRepository.playedSongs, [_songA, _songB]);
       expect(audioHandler.playbackState.value.queueIndex, 1);
+    });
+  });
+
+  group('last session restore', () {
+    test('restores now playing from disk and play reloads the engine', () async {
+      final audioRepository = _FakeAudioRepository();
+      final audioHandler = NenAudioHandler(audioRepository);
+      await audioHandler.init();
+      addTearDown(audioHandler.teardown);
+
+      final settings = _FakeSettingsRepository()
+        ..lastSession = const LastPlaybackSession(
+          queueIds: [1],
+          queueIndex: 0,
+          positionMs: 5000,
+          wasPlaying: false,
+        );
+
+      final container = ProviderContainer(
+        overrides: [
+          audioHandlerProvider.overrideWithValue(audioHandler),
+          settingsRepositoryProvider.overrideWithValue(settings),
+          musicRepositoryProvider.overrideWithValue(
+            _FakeMusicRepository(const [_songA, _songB]),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(playbackProvider);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      final restored = container.read(playbackProvider);
+      expect(restored.currentSong, _songA);
+      expect(restored.position, const Duration(seconds: 5));
+      expect(restored.isPlaying, isFalse);
+      expect(audioRepository.playedSongs, isEmpty);
+
+      await container.read(playbackProvider.notifier).resume();
+      expect(audioRepository.playedSongs, [_songA]);
+      expect(container.read(playbackProvider).isPlaying, isTrue);
     });
   });
 

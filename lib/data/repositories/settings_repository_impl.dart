@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../domain/repositories/settings_repository.dart';
@@ -17,6 +19,7 @@ class SettingsRepositoryImpl implements SettingsRepository {
   static const _eqActiveKey = 'eq_active';
   static const _eqBandsKey = 'eq_bands';
   static const _hasSeenOnboardingKey = 'has_seen_onboarding';
+  static const _lastPlaybackSessionKey = 'last_playback_session';
 
   SharedPreferences? _cachedPrefs;
 
@@ -210,5 +213,31 @@ class SettingsRepositoryImpl implements SettingsRepository {
   Future<void> setHasSeenOnboarding(bool value) async {
     final prefs = await _prefs;
     await prefs.setBool(_hasSeenOnboardingKey, value);
+  }
+
+  @override
+  Future<LastPlaybackSession?> getLastPlaybackSession() async {
+    final prefs = await _prefs;
+    final raw = prefs.getString(_lastPlaybackSessionKey);
+    if (raw == null || raw.isEmpty) return null;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      return LastPlaybackSession.fromJson(
+        Map<String, dynamic>.from(decoded),
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> setLastPlaybackSession(LastPlaybackSession? session) async {
+    final prefs = await _prefs;
+    if (session == null || session.queueIds.isEmpty) {
+      await prefs.remove(_lastPlaybackSessionKey);
+      return;
+    }
+    await prefs.setString(_lastPlaybackSessionKey, jsonEncode(session.toJson()));
   }
 }

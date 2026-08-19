@@ -40,4 +40,52 @@ abstract class SettingsRepository {
   // First-launch onboarding
   Future<bool> getHasSeenOnboarding();
   Future<void> setHasSeenOnboarding(bool value);
+
+  // Last now-playing session (queue + position) so reopen restores the card
+  Future<LastPlaybackSession?> getLastPlaybackSession();
+  Future<void> setLastPlaybackSession(LastPlaybackSession? session);
+}
+
+/// Persisted now-playing snapshot. Does not include audio bytes.
+class LastPlaybackSession {
+  final List<int> queueIds;
+  final int queueIndex;
+  final int positionMs;
+  final bool wasPlaying;
+
+  const LastPlaybackSession({
+    required this.queueIds,
+    required this.queueIndex,
+    required this.positionMs,
+    required this.wasPlaying,
+  });
+
+  Map<String, Object?> toJson() => {
+    'queueIds': queueIds,
+    'queueIndex': queueIndex,
+    'positionMs': positionMs,
+    'wasPlaying': wasPlaying,
+  };
+
+  static LastPlaybackSession? fromJson(Map<String, dynamic>? json) {
+    if (json == null) return null;
+    final rawIds = json['queueIds'];
+    if (rawIds is! List || rawIds.isEmpty) return null;
+    final ids = <int>[
+      for (final id in rawIds)
+        if (id is int)
+          id
+        else if (id is num)
+          id.toInt()
+        else
+          int.tryParse('$id') ?? 0,
+    ].where((id) => id != 0).toList();
+    if (ids.isEmpty) return null;
+    return LastPlaybackSession(
+      queueIds: ids,
+      queueIndex: (json['queueIndex'] as num?)?.toInt() ?? 0,
+      positionMs: (json['positionMs'] as num?)?.toInt() ?? 0,
+      wasPlaying: json['wasPlaying'] == true,
+    );
+  }
 }

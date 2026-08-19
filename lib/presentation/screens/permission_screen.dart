@@ -4,7 +4,6 @@ import 'package:permission_handler/permission_handler.dart';
 
 import '../providers/providers.dart';
 import '../theme/nen_theme.dart';
-import 'home_screen.dart';
 
 /// Splash / permission gate screen.
 class PermissionScreen extends ConsumerStatefulWidget {
@@ -84,30 +83,14 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
 
   void _onGranted() {
     // Audio engine is already initialized in main() via NenAudioHandler.
-    // Schedule navigation after frame to avoid lifecycle race conditions.
+    // Let StartupGate swap to HomeScreen — do not pushReplacement, or a
+    // later MaterialApp rebuild would flash this branded gate again.
     if (!mounted) return;
+    ref.read(hasAudioPermissionProvider.notifier).state = true;
     setState(() {
       _granted = true;
       _loading = false;
       _errorMessage = null;
-    });
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      Navigator.of(context).pushReplacement(
-        PageRouteBuilder(
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              const HomeScreen(),
-          transitionsBuilder: (context, animation, secondaryAnimation, child) =>
-              FadeTransition(
-                opacity: CurvedAnimation(
-                  parent: animation,
-                  curve: Curves.easeOut,
-                ),
-                child: child,
-              ),
-          transitionDuration: const Duration(milliseconds: 500),
-        ),
-      );
     });
   }
 
