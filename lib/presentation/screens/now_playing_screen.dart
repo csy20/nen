@@ -1354,7 +1354,9 @@ class _VisualizerWidgetState extends ConsumerState<_VisualizerWidget>
         state == AppLifecycleState.inactive) {
       _animController.stop();
     } else if (state == AppLifecycleState.resumed) {
-      _animController.repeat();
+      if (ref.read(playbackProvider).isPlaying) {
+        _animController.repeat();
+      }
     }
   }
 
@@ -1377,8 +1379,7 @@ class _VisualizerWidgetState extends ConsumerState<_VisualizerWidget>
   @override
   Widget build(BuildContext context) {
     final playing = ref.watch(playbackProvider.select((s) => s.isPlaying));
-    final live = ref.read(audioRepositoryProvider).isVisualizerLive;
-    if (playing && live) {
+    if (playing) {
       if (!_animController.isAnimating) {
         _animController.repeat();
       }
@@ -1523,7 +1524,9 @@ class _VisualizerRowWidgetState extends ConsumerState<_VisualizerRowWidget>
         state == AppLifecycleState.inactive) {
       _animController.stop();
     } else if (state == AppLifecycleState.resumed) {
-      _animController.repeat();
+      if (ref.read(playbackProvider).isPlaying) {
+        _animController.repeat();
+      }
     }
   }
 
@@ -1548,8 +1551,7 @@ class _VisualizerRowWidgetState extends ConsumerState<_VisualizerRowWidget>
   @override
   Widget build(BuildContext context) {
     final playing = ref.watch(playbackProvider.select((s) => s.isPlaying));
-    final live = ref.read(audioRepositoryProvider).isVisualizerLive;
-    if (playing && live) {
+    if (playing) {
       if (!_animController.isAnimating) {
         _animController.repeat();
       }
@@ -1620,8 +1622,7 @@ void _driveVisualizerHeights({
   bool mirrorFromCenter = false,
 }) {
   final isPlaying = ref.read(playbackProvider).isPlaying;
-  final live = ref.read(audioRepositoryProvider).isVisualizerLive;
-  if (!isPlaying || !live) {
+  if (!isPlaying) {
     for (int i = 0; i < currentHeights.length; i++) {
       currentHeights[i] = lerpDouble(currentHeights[i], floorHeight, 0.18)!;
     }

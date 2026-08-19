@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
@@ -9,6 +10,7 @@ import '../../domain/audio/audio_format.dart';
 import '../../domain/audio/audio_playback_exception.dart';
 import '../../domain/entities/entities.dart';
 import '../../domain/repositories/audio_repository.dart';
+import '../services/system_fft_capture.dart';
 
 class _RetiringTrack {
   final SoundHandle handle;
@@ -40,6 +42,8 @@ class AudioRepositoryImpl implements AudioRepository {
   StreamSubscription<Duration>? _systemPositionSub;
   StreamSubscription<ja.PlayerState>? _systemStateSub;
   StreamSubscription<Duration?>? _systemDurationSub;
+  StreamSubscription<int?>? _systemSessionSub;
+  final SystemFftCapture _systemFft = SystemFftCapture();
 
   bool _initialized = false;
   bool _soloudReady = false;
@@ -60,7 +64,10 @@ class AudioRepositoryImpl implements AudioRepository {
 
   @override
   bool get isVisualizerLive =>
-      _soloudReady && _activeBackend == _Backend.soloud && !_disposed;
+      !_disposed &&
+      _wantPlaying &&
+      (_activeBackend == _Backend.soloud && _soloudReady ||
+          _activeBackend == _Backend.system);
 
   @override
   Duration get currentDuration => _currentDuration;
@@ -324,6 +331,7 @@ class AudioRepositoryImpl implements AudioRepository {
   Future<void> stop() async {
     _playGeneration++;
     _wantPlaying = false;
+    unawaited(_systemFft.detach());
     _positionTimer?.cancel();
     _lastPosition = Duration.zero;
     _completionFired = true;
@@ -389,8 +397,16 @@ class AudioRepositoryImpl implements AudioRepository {
 
   @override
   List<double> getFFTData() {
-    if (_disposed ||
-        !_soloudReady ||
+    if (_disposed) {
+      _fillFftBuffer(0.0);
+      return _fftBuffer;
+    }
+    if (_activeBackend == _Backend.system && _wantPlaying) {
+      if (_systemFft.copyInto(_fftBuffer)) return _fftBuffer;
+      _fillPlayingFallback();
+      return _fftBuffer;
+    }
+    if (!_soloudReady ||
         _audioData == null ||
         _activeBackend != _Backend.soloud) {
       _fillFftBuffer(0.0);
@@ -669,6 +685,7 @@ class AudioRepositoryImpl implements AudioRepository {
     _ensureCurrent(gen);
     if (!_wantPlaying) return;
     await player.play();
+    unawaited(_systemFft.attach(player.androidAudioSessionId));
   }
 
   Future<Duration?> _setSystemSource(ja.AudioPlayer player, Song song) async {
@@ -724,6 +741,12 @@ class AudioRepositoryImpl implements AudioRepository {
       if (next == _currentDuration) return;
       _currentDuration = next;
       _positionController.add(_lastPosition);
+    });
+    _systemSessionSub = player.androidAudioSessionIdStream.listen((id) {
+      if (_disposed || _activeBackend != _Backend.system || !_wantPlaying) {
+        return;
+      }
+      unawaited(_systemFft.attach(id));
     });
   }
 
@@ -917,12 +940,15 @@ class AudioRepositoryImpl implements AudioRepository {
   }
 
   Future<void> _disposeSystemPlayer() async {
+    await _systemFft.detach();
     await _systemPositionSub?.cancel();
     await _systemStateSub?.cancel();
     await _systemDurationSub?.cancel();
+    await _systemSessionSub?.cancel();
     _systemPositionSub = null;
     _systemStateSub = null;
     _systemDurationSub = null;
+    _systemSessionSub = null;
     try {
       await _systemPlayer?.dispose();
     } catch (e) {
@@ -956,6 +982,18 @@ class AudioRepositoryImpl implements AudioRepository {
   void _fillFftBuffer(double value) {
     for (var i = 0; i < _fftBuffer.length; i++) {
       _fftBuffer[i] = value;
+    }
+  }
+
+  void _fillPlayingFallback() {
+    final t = DateTime.now().millisecondsSinceEpoch / 240.0;
+    for (var i = 0; i < _fftBuffer.length; i++) {
+      final band = i / _fftBuffer.length;
+      final wave =
+          0.5 +
+          0.5 * math.sin(t * (1.05 + band * 1.7) + i * 0.13) *
+              math.sin(t * 0.37 + band * 4.0);
+      _fftBuffer[i] = (0.18 + 0.62 * wave.abs()) * (1.0 - band * 0.35);
     }
   }
 }
