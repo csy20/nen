@@ -5,10 +5,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:palette_generator/palette_generator.dart';
 
+import '../../data/services/library_media_store.dart';
 import '../../domain/entities/entities.dart';
 import '../theme/nen_theme.dart';
 import 'di_providers.dart';
 import 'playback_provider.dart';
+import 'settings_provider.dart';
 
 class LibraryRefreshNotifier extends StateNotifier<int> {
   final Ref _ref;
@@ -36,9 +38,16 @@ final currentSongIdProvider = Provider<int?>((ref) {
 
 // ── Songs ───────────────────────────────────────────────────────────
 
-final songsProvider = FutureProvider<List<Song>>((ref) {
+final songsProvider = FutureProvider<List<Song>>((ref) async {
   ref.watch(libraryRefreshProvider);
-  return ref.watch(getSongsUseCaseProvider)();
+  try {
+    return await ref.watch(getSongsUseCaseProvider)();
+  } on LibraryAccessException catch (error) {
+    if (error.permissionDenied) {
+      ref.read(hasAudioPermissionProvider.notifier).state = false;
+    }
+    rethrow;
+  }
 });
 
 // ── Albums ──────────────────────────────────────────────────────────
@@ -106,6 +115,7 @@ class SearchQueryNotifier extends StateNotifier<String> {
   void clear() {
     _rawQuery = '';
     _debounce?.cancel();
+    if (state.isEmpty) return;
     state = '';
   }
 
@@ -131,20 +141,16 @@ final searchResultsProvider = FutureProvider<List<Song>>((ref) {
 
 // ── Album Art Cache ────────────────────────────────────────────────
 
-final albumArtProvider = FutureProvider.autoDispose.family<Uint8List?, int>((
-  ref,
-  songId,
-) {
+final albumArtProvider = FutureProvider.family<Uint8List?, int>((ref, songId) {
   ref.watch(libraryRefreshProvider);
   return ref.watch(musicRepositoryProvider).getAlbumArt(songId, size: 96);
 });
 
-final largeAlbumArtProvider = FutureProvider.autoDispose.family<Uint8List?, int>(
-  (ref, songId) {
-    ref.watch(libraryRefreshProvider);
-    return ref.watch(musicRepositoryProvider).getAlbumArt(songId, size: 300);
-  },
-);
+final largeAlbumArtProvider = FutureProvider.autoDispose
+    .family<Uint8List?, int>((ref, songId) {
+      ref.watch(libraryRefreshProvider);
+      return ref.watch(musicRepositoryProvider).getAlbumArt(songId, size: 300);
+    });
 
 final songAccentColorProvider = FutureProvider.autoDispose.family<Color, int>((
   ref,

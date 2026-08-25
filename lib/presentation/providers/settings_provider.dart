@@ -22,7 +22,7 @@ class SettingsState {
     this.customAccentColor,
     this.crossfadeEnabled = false,
     this.crossfadeDuration = 3,
-    this.themeMode = NenThemeMode.dark,
+    this.themeMode = NenThemeMode.system,
     this.highContrast = false,
   });
 

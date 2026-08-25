@@ -275,8 +275,12 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                     'artist': s.artist,
                     'album': s.album,
                     'albumId': s.albumId,
+                    'artistId': s.artistId,
                     'duration': s.duration.inMilliseconds,
                     'filePath': s.filePath,
+                    'uri': s.uri,
+                    'fileExtension': s.fileExtension,
+                    'fileSize': s.fileSize,
                     'trackNumber': s.trackNumber,
                     'year': s.year,
                   },
@@ -334,11 +338,11 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
       int count = 0;
       for (final playlistData in data) {
         final map = playlistData as Map<String, dynamic>;
-        final name = map['name'] as String;
-        final createdPlaylist = await ref
-            .read(playlistsProvider.notifier)
-            .create(name);
-        final songs = (map['songs'] as List<dynamic>).map((songData) {
+        final name = (map['name'] as String?)?.trim() ?? '';
+        if (name.isEmpty) continue;
+        final songs = (map['songs'] as List<dynamic>? ?? const []).map((
+          songData,
+        ) {
           final song = songData as Map<String, dynamic>;
           return Song(
             id: song['id'] as int,
@@ -346,19 +350,17 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
             artist: song['artist'] as String,
             album: song['album'] as String,
             albumId: song['albumId'] as int,
+            artistId: song['artistId'] as int? ?? 0,
             duration: Duration(milliseconds: song['duration'] as int),
-            filePath: song['filePath'] as String,
+            filePath: song['filePath'] as String? ?? '',
+            uri: song['uri'] as String? ?? '',
+            fileExtension: song['fileExtension'] as String? ?? '',
+            fileSize: song['fileSize'] as int? ?? 0,
             trackNumber: song['trackNumber'] as int? ?? 0,
             year: song['year'] as int? ?? 0,
           );
-        });
-        await Future.wait(
-          songs.map(
-            (song) => ref
-                .read(playlistsProvider.notifier)
-                .addSong(createdPlaylist.id, song),
-          ),
-        );
+        }).toList();
+        await ref.read(playlistsProvider.notifier).importNamed(name, songs);
         count++;
       }
       await ref.read(playlistsProvider.notifier).load();
@@ -385,22 +387,28 @@ class _PlaylistDetailScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NenTheme.of(context);
+    final live =
+        ref
+            .watch(playlistsProvider)
+            .where((p) => p.id == playlist.id)
+            .firstOrNull ??
+        playlist;
     return Scaffold(
       backgroundColor: colors.background,
       appBar: AppBar(
-        title: Text(playlist.name),
+        title: Text(live.name),
         actions: [
-          if (playlist.songs.isNotEmpty)
+          if (live.songs.isNotEmpty)
             IconButton(
               icon: const Icon(Icons.play_arrow_rounded),
               onPressed: () => ref
                   .read(playbackProvider.notifier)
-                  .playQueue(List.from(playlist.songs)),
+                  .playQueue(List.from(live.songs)),
               tooltip: 'Play All',
             ),
         ],
       ),
-      body: playlist.songs.isEmpty
+      body: live.songs.isEmpty
           ? Center(
               child: Text(
                 'No songs in this playlist',
@@ -408,12 +416,12 @@ class _PlaylistDetailScreen extends ConsumerWidget {
               ),
             )
           : ListView.builder(
-              itemCount: playlist.songs.length,
+              itemCount: live.songs.length,
               physics: const BouncingScrollPhysics(),
               itemBuilder: (context, index) {
-                final song = playlist.songs[index];
+                final song = live.songs[index];
                 return Dismissible(
-                  key: ValueKey('${playlist.id}_${song.id}'),
+                  key: ValueKey('${live.id}_${song.id}'),
                   direction: DismissDirection.endToStart,
                   background: Container(
                     alignment: Alignment.centerRight,
@@ -427,16 +435,13 @@ class _PlaylistDetailScreen extends ConsumerWidget {
                   onDismissed: (_) {
                     ref
                         .read(playlistsProvider.notifier)
-                        .removeSong(playlist.id, song.id);
+                        .removeSong(live.id, song.id);
                   },
                   child: SongTile(
                     song: song,
                     onTap: () => ref
                         .read(playbackProvider.notifier)
-                        .playQueue(
-                          List.from(playlist.songs),
-                          startIndex: index,
-                        ),
+                        .playQueue(List.from(live.songs), startIndex: index),
                     onLongPress: () => showSongActionsSheet(context, ref, song),
                   ),
                 );

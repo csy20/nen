@@ -5,6 +5,7 @@ class Song {
   final String artist;
   final String album;
   final int albumId;
+  final int artistId;
   final Duration duration;
   final String filePath;
   final String uri;
@@ -19,6 +20,7 @@ class Song {
     required this.artist,
     required this.album,
     required this.albumId,
+    this.artistId = 0,
     required this.duration,
     required this.filePath,
     this.uri = '',
@@ -41,6 +43,7 @@ class Song {
     String? artist,
     String? album,
     int? albumId,
+    int? artistId,
     Duration? duration,
     String? filePath,
     String? uri,
@@ -55,6 +58,7 @@ class Song {
       artist: artist ?? this.artist,
       album: album ?? this.album,
       albumId: albumId ?? this.albumId,
+      artistId: artistId ?? this.artistId,
       duration: duration ?? this.duration,
       filePath: filePath ?? this.filePath,
       uri: uri ?? this.uri,

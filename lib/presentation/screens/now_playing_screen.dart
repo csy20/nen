@@ -686,7 +686,12 @@ class NowPlayingScreen extends ConsumerWidget {
           builder: (sheetContext, scrollController) {
             return Consumer(
               builder: (sheetContext, ref, _) {
-                final playback = ref.watch(playbackProvider);
+                final queue = ref.watch(
+                  playbackProvider.select((s) => s.queue),
+                );
+                final queueIndex = ref.watch(
+                  playbackProvider.select((s) => s.queueIndex),
+                );
                 final sheetColors = NenTheme.of(sheetContext);
                 return Column(
                   children: [
@@ -704,7 +709,7 @@ class NowPlayingScreen extends ConsumerWidget {
                           ),
                           const Spacer(),
                           Text(
-                            '${playback.queue.length} songs',
+                            '${queue.length} songs',
                             style: TextStyle(
                               color: sheetColors.textTertiary,
                               fontSize: 12,
@@ -712,7 +717,7 @@ class NowPlayingScreen extends ConsumerWidget {
                           ),
                           const SizedBox(width: 12),
                           TextButton(
-                            onPressed: playback.queue.length <= 1
+                            onPressed: queue.length <= 1
                                 ? null
                                 : () => ref
                                       .read(playbackProvider.notifier)
@@ -725,15 +730,15 @@ class NowPlayingScreen extends ConsumerWidget {
                     Expanded(
                       child: ReorderableListView.builder(
                         scrollController: scrollController,
-                        itemCount: playback.queue.length,
+                        itemCount: queue.length,
                         onReorder: (oldIndex, newIndex) {
                           ref
                               .read(playbackProvider.notifier)
                               .reorderQueue(oldIndex, newIndex);
                         },
                         itemBuilder: (context, index) {
-                          final queuedSong = playback.queue[index];
-                          final isCurrent = index == playback.queueIndex;
+                          final queuedSong = queue[index];
+                          final isCurrent = index == queueIndex;
                           return ListTile(
                             key: ValueKey('queue_${queuedSong.id}_$index'),
                             leading: isCurrent
@@ -1343,9 +1348,10 @@ class _VisualizerWidgetState extends ConsumerState<_VisualizerWidget>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _animController =
-        AnimationController(vsync: this, duration: const Duration(seconds: 4))
-          ..addListener(_onFrame);
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    )..addListener(_onFrame);
   }
 
   @override
@@ -1513,9 +1519,10 @@ class _VisualizerRowWidgetState extends ConsumerState<_VisualizerRowWidget>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _animController =
-        AnimationController(vsync: this, duration: const Duration(seconds: 4))
-          ..addListener(_onFrame);
+    _animController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 4),
+    )..addListener(_onFrame);
   }
 
   @override

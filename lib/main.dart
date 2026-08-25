@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
@@ -38,25 +39,27 @@ void main() async {
     ),
   );
 
-  // Pre-warm the visualizer shader to avoid first-render jank
-  try {
-    await ui.FragmentProgram.fromAsset('shaders/visualizer.frag');
-  } catch (_) {
-    // Shader may not be available on all platforms
-  }
+  // Shader compile is independent of first paint.
+  unawaited(
+    ui.FragmentProgram.fromAsset(
+      'shaders/visualizer.frag',
+    ).then((_) {}, onError: (_) {}),
+  );
 
-  // Initialize background audio service and cold-start flags before the
-  // first frame so onboarding/permission never flash on a returning user.
+  // Onboarding/permission flags plus audio_service in parallel so a slow
+  // MediaStore probe does not serialize behind AudioService.init.
   final audioRepo = AudioRepositoryImpl();
   final musicRepo = MusicRepositoryImpl();
   final settingsRepo = SettingsRepositoryImpl();
   final permissionService = PermissionService();
-  final hasSeenOnboarding = await settingsRepo.getHasSeenOnboarding();
-  final hasAudioPermission = await permissionService.hasAudioPermission();
-  final globalAudioHandler = await _initAudioHandlerWithFallback(
-    audioRepo,
-    musicRepo,
-  );
+  final startup = await Future.wait<Object?>([
+    settingsRepo.getHasSeenOnboarding(),
+    permissionService.hasAudioPermission(),
+    _initAudioHandlerWithFallback(audioRepo, musicRepo),
+  ]);
+  final hasSeenOnboarding = startup[0] as bool;
+  final hasAudioPermission = startup[1] as bool;
+  final globalAudioHandler = startup[2] as NenAudioHandler;
 
   runApp(
     ProviderScope(
@@ -101,7 +104,9 @@ class NenApp extends ConsumerStatefulWidget {
 class _NenAppState extends ConsumerState<NenApp> {
   late final ProviderSubscription<PlaybackFeedbackMessage?>
   _feedbackSubscription;
-  bool _lastIsDark = true;
+  bool _lastIsDark =
+      WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+      Brightness.dark;
 
   @override
   void initState() {

@@ -70,6 +70,13 @@ void main() {
 
       expect(notifier.state, isEmpty);
     });
+
+    test('clear is a no-op when already empty', () {
+      final notifier = SearchQueryNotifier();
+      addTearDown(notifier.dispose);
+      notifier.clear();
+      expect(notifier.state, isEmpty);
+    });
   });
 
   group('libraryRefreshProvider', () {

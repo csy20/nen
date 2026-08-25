@@ -23,70 +23,74 @@ class SongTile extends ConsumerWidget {
     final artAsync = ref.watch(albumArtProvider(song.id));
     final currentSongId = ref.watch(currentSongIdProvider);
     final isPlaying = currentSongId == song.id;
-    final isFav = ref.watch(favoritesProvider.select((s) => s.contains(song.id)));
+    final isFav = ref.watch(
+      favoritesProvider.select((s) => s.contains(song.id)),
+    );
     final colors = NenTheme.of(context);
 
-    return ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-      leading: ClipRRect(
-        borderRadius: BorderRadius.circular(16),
-        child: SizedBox(
-          width: 52,
-          height: 52,
-          child: artAsync.when(
-            data: (art) {
-              if (art != null && art.isNotEmpty) {
-                return Image.memory(
-                  art,
-                  fit: BoxFit.cover,
-                  cacheWidth: 96,
-                  cacheHeight: 96,
-                );
-              }
-              return _defaultArt(context);
-            },
-            loading: () => _defaultArt(context),
-            error: (error, stackTrace) => _defaultArt(context),
-          ),
-        ),
-      ),
-      title: Text(
-        song.title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          color: isPlaying
-              ? Theme.of(context).colorScheme.primary
-              : colors.textPrimary,
-          fontWeight: isPlaying ? FontWeight.w600 : FontWeight.normal,
-        ),
-      ),
-      subtitle: Text(
-        song.artist,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: TextStyle(color: colors.textSecondary, fontSize: 13),
-      ),
-      trailing: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          GestureDetector(
-            onTap: () => ref.read(favoritesProvider.notifier).toggle(song.id),
-            child: Icon(
-              isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
-              color: isFav ? Colors.cyanAccent : colors.textTertiary,
-              size: 20,
+    return RepaintBoundary(
+      child: ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: SizedBox(
+            width: 52,
+            height: 52,
+            child: artAsync.when(
+              data: (art) {
+                if (art != null && art.isNotEmpty) {
+                  return Image.memory(
+                    art,
+                    fit: BoxFit.cover,
+                    cacheWidth: 96,
+                    cacheHeight: 96,
+                  );
+                }
+                return _defaultArt(context);
+              },
+              loading: () => _defaultArt(context),
+              error: (error, stackTrace) => _defaultArt(context),
             ),
           ),
-          const SizedBox(width: 8),
-          Text(
-            _formatDuration(song.duration),
-            style: TextStyle(color: colors.textTertiary, fontSize: 12),
+        ),
+        title: Text(
+          song.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: isPlaying
+                ? Theme.of(context).colorScheme.primary
+                : colors.textPrimary,
+            fontWeight: isPlaying ? FontWeight.w600 : FontWeight.normal,
           ),
-        ],
+        ),
+        subtitle: Text(
+          song.artist,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(color: colors.textSecondary, fontSize: 13),
+        ),
+        trailing: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GestureDetector(
+              onTap: () => ref.read(favoritesProvider.notifier).toggle(song.id),
+              child: Icon(
+                isFav ? Icons.favorite_rounded : Icons.favorite_border_rounded,
+                color: isFav ? Colors.cyanAccent : colors.textTertiary,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              _formatDuration(song.duration),
+              style: TextStyle(color: colors.textTertiary, fontSize: 12),
+            ),
+          ],
+        ),
+        onTap: onTap,
+        onLongPress: onLongPress,
       ),
-      onTap: onTap,
-      onLongPress: onLongPress,
     );
   }
 

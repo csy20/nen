@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nen/data/repositories/settings_repository_impl.dart';
 import 'package:nen/domain/repositories/settings_repository.dart';
+import 'package:nen/presentation/theme/nen_theme.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -8,6 +9,11 @@ void main() {
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
+  });
+
+  test('theme mode defaults to system when unset', () async {
+    final repo = SettingsRepositoryImpl();
+    expect(await repo.getThemeMode(), NenThemeMode.system.index);
   });
 
   test('has_seen_onboarding defaults to false and persists', () async {

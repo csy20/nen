@@ -12,7 +12,7 @@ import '../../domain/repositories/playlist_repository.dart';
 
 class PlaylistRepositoryImpl implements PlaylistRepository {
   static const _databaseName = 'nen_playlists.db';
-  static const _databaseVersion = 1;
+  static const _databaseVersion = 2;
   static const _legacyKey = 'playlists_v1';
   static const _migrationKey = 'playlists_sqlite_migrated_v1';
 
@@ -62,9 +62,29 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
             file_path TEXT NOT NULL,
             track_number INTEGER NOT NULL,
             year INTEGER NOT NULL,
+            uri TEXT NOT NULL DEFAULT '',
+            artist_id INTEGER NOT NULL DEFAULT 0,
+            file_extension TEXT NOT NULL DEFAULT '',
+            file_size INTEGER NOT NULL DEFAULT 0,
             PRIMARY KEY (playlist_id, song_order)
           )
         ''');
+      },
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          await db.execute(
+            "ALTER TABLE playlist_songs ADD COLUMN uri TEXT NOT NULL DEFAULT ''",
+          );
+          await db.execute(
+            'ALTER TABLE playlist_songs ADD COLUMN artist_id INTEGER NOT NULL DEFAULT 0',
+          );
+          await db.execute(
+            "ALTER TABLE playlist_songs ADD COLUMN file_extension TEXT NOT NULL DEFAULT ''",
+          );
+          await db.execute(
+            'ALTER TABLE playlist_songs ADD COLUMN file_size INTEGER NOT NULL DEFAULT 0',
+          );
+        }
       },
     );
   }
@@ -187,6 +207,22 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
     );
   }
 
+  @override
+  Future<Playlist> replacePlaylistSongs(
+    String playlistId,
+    List<Song> songs,
+  ) async {
+    final db = await _readyDb();
+    return db.transaction((txn) async {
+      final unique = <int, Song>{};
+      for (final song in songs) {
+        unique[song.id] = song;
+      }
+      await _rewritePlaylistSongs(txn, playlistId, unique.values.toList());
+      return _getPlaylistById(txn, playlistId);
+    });
+  }
+
   Future<Database> _readyDb() async {
     final db = await _db;
     await _migrateLegacyPlaylists(db);
@@ -268,6 +304,10 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
       'file_path': song.filePath,
       'track_number': song.trackNumber,
       'year': song.year,
+      'uri': song.uri,
+      'artist_id': song.artistId,
+      'file_extension': song.fileExtension,
+      'file_size': song.fileSize,
     }, conflictAlgorithm: ConflictAlgorithm.replace);
   }
 
@@ -314,9 +354,15 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
       artist: (row['artist'] as String?) ?? 'Unknown Artist',
       album: (row['album'] as String?) ?? 'Unknown Album',
       albumId: (row['album_id'] as int?) ?? 0,
+      artistId: (row['artist_id'] as int?) ?? 0,
       duration: Duration(milliseconds: (row['duration_ms'] as int?) ?? 0),
       filePath: filePath,
-      fileExtension: AudioFormat.extensionOf(filePath),
+      uri: (row['uri'] as String?) ?? '',
+      fileExtension: AudioFormat.normalizeExtension(
+        row['file_extension'] as String?,
+        fallbackPath: filePath,
+      ),
+      fileSize: (row['file_size'] as int?) ?? 0,
       trackNumber: (row['track_number'] as int?) ?? 0,
       year: (row['year'] as int?) ?? 0,
     );
@@ -345,6 +391,7 @@ class PlaylistRepositoryImpl implements PlaylistRepository {
       duration: Duration(milliseconds: map['duration'] as int),
       filePath: filePath,
       uri: map['uri'] as String? ?? '',
+      artistId: map['artistId'] as int? ?? 0,
       fileExtension: AudioFormat.normalizeExtension(
         map['fileExtension'] as String?,
         fallbackPath: filePath,

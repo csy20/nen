@@ -86,19 +86,24 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
               // 4. Tab Content area
               Expanded(
-                child: PageView(
+                child: PageView.builder(
                   controller: _pageController,
                   physics: const BouncingScrollPhysics(),
+                  itemCount: 6,
                   onPageChanged: (index) {
                     setState(() => _tabIndex = index);
                   },
-                  children: const [
-                    HomeTab(),
-                    FavoritesTab(),
-                    AlbumsTab(),
-                    ArtistsTab(),
-                    PlaylistsScreen(),
-                  ],
+                  itemBuilder: (context, index) {
+                    return switch (index) {
+                      0 => const HomeTab(),
+                      1 => const FavoritesTab(),
+                      2 => const AlbumsTab(),
+                      3 => const ArtistsTab(),
+                      4 => const PlaylistsScreen(),
+                      5 => const FoldersTab(),
+                      _ => const SizedBox.shrink(),
+                    };
+                  },
                 ),
               ),
             ],
@@ -177,7 +182,15 @@ class _HomeTopBar extends ConsumerWidget {
             ),
             const SizedBox(width: 12),
             _TopBarIconButton(
-              icon: Icons.tune_rounded, // Equalizer/Settings icon
+              icon: Icons.search_rounded,
+              onPressed: () {
+                ref.read(searchQueryProvider.notifier).clear();
+                showSearch(context: context, delegate: SongSearchDelegate(ref));
+              },
+            ),
+            const SizedBox(width: 12),
+            _TopBarIconButton(
+              icon: Icons.tune_rounded,
               onPressed: () {
                 Navigator.push(
                   context,
@@ -467,7 +480,6 @@ class _FloatingBottomNavBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = NenTheme.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
@@ -527,6 +539,11 @@ class _FloatingBottomNavBar extends StatelessWidget {
                   isSelected: currentIndex == 4,
                   onTap: () => onTap(4),
                 ),
+                _NavItem(
+                  icon: Icons.folder_rounded,
+                  isSelected: currentIndex == 5,
+                  onTap: () => onTap(5),
+                ),
               ],
             ),
           ),
@@ -557,7 +574,7 @@ class _NavItem extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         // subtle background for the active item
         decoration: isSelected
             ? BoxDecoration(

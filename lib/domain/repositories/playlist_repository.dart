@@ -22,4 +22,5 @@ abstract class PlaylistRepository {
     int newIndex,
   );
   Future<void> renamePlaylist(String id, String newName);
+  Future<Playlist> replacePlaylistSongs(String playlistId, List<Song> songs);
 }

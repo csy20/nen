@@ -46,6 +46,24 @@ class PlaylistNotifier extends StateNotifier<List<Playlist>> {
         .map((p) => p.id == id ? p.copyWith(name: newName) : p)
         .toList();
   }
+
+  /// Create or replace a playlist of [name] so re-import is not a duplicate.
+  Future<Playlist> importNamed(String name, List<Song> songs) async {
+    final trimmed = name.trim();
+    Playlist? existing;
+    for (final playlist in state) {
+      if (playlist.name.toLowerCase() == trimmed.toLowerCase()) {
+        existing = playlist;
+        break;
+      }
+    }
+    final target = existing ?? await create(trimmed);
+    final updated = await _ref
+        .read(managePlaylistUseCaseProvider)
+        .replaceSongs(target.id, songs);
+    state = [for (final p in state) p.id == target.id ? updated : p];
+    return updated;
+  }
 }
 
 final playlistsProvider =

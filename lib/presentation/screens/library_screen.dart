@@ -155,7 +155,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
   void _showSearch(BuildContext context) {
     ref.read(searchQueryProvider.notifier).clear();
-    showSearch(context: context, delegate: _SongSearchDelegate(ref));
+    showSearch(context: context, delegate: SongSearchDelegate(ref));
   }
 }
 
@@ -846,11 +846,10 @@ class _FolderDetailScreen extends ConsumerWidget {
 
 // ── Search Delegate ────────────────────────────────────────────────
 
-class _SongSearchDelegate extends SearchDelegate<String> {
+class SongSearchDelegate extends SearchDelegate<String> {
   final WidgetRef ref;
-  bool _querySynced = false;
 
-  _SongSearchDelegate(this.ref);
+  SongSearchDelegate(this.ref);
 
   @override
   ThemeData appBarTheme(BuildContext context) {
@@ -897,13 +896,16 @@ class _SongSearchDelegate extends SearchDelegate<String> {
     return Consumer(
       builder: (context, ref, _) {
         final colors = NenTheme.of(context);
-        if (!_querySynced && query.isNotEmpty) {
-          _querySynced = true;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _querySynced = false;
-            ref.read(searchQueryProvider.notifier).setQuery(query);
-          });
-        }
+        final latest = query;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!context.mounted) return;
+          final notifier = ref.read(searchQueryProvider.notifier);
+          if (latest.trim().isEmpty) {
+            notifier.clear();
+          } else {
+            notifier.setQuery(latest);
+          }
+        });
         final results = ref.watch(searchResultsProvider);
 
         return results.when(

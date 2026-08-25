@@ -17,12 +17,6 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
-  void initState() {
-    super.initState();
-    Future.microtask(() => ref.read(settingsProvider.notifier).load());
-  }
-
-  @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
     final colors = NenTheme.of(context);
@@ -222,10 +216,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 key: const Key('rate_this_app'),
                 title: 'Rate this app',
                 subtitle: 'Share feedback on Google Play',
-                trailing: Icon(
-                  Icons.star_rounded,
-                  color: colors.textSecondary,
-                ),
+                trailing: Icon(Icons.star_rounded, color: colors.textSecondary),
                 onTap: () => _rateApp(context),
               ),
             ],

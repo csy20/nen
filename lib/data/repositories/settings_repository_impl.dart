@@ -147,7 +147,8 @@ class SettingsRepositoryImpl implements SettingsRepository {
   @override
   Future<int> getThemeMode() async {
     final prefs = await _prefs;
-    return prefs.getInt(_themeModeKey) ?? 0;
+    // Unset means follow the OS (NenThemeMode.system is index 2).
+    return prefs.getInt(_themeModeKey) ?? 2;
   }
 
   @override
@@ -223,9 +224,7 @@ class SettingsRepositoryImpl implements SettingsRepository {
     try {
       final decoded = jsonDecode(raw);
       if (decoded is! Map) return null;
-      return LastPlaybackSession.fromJson(
-        Map<String, dynamic>.from(decoded),
-      );
+      return LastPlaybackSession.fromJson(Map<String, dynamic>.from(decoded));
     } catch (_) {
       return null;
     }
@@ -238,6 +237,9 @@ class SettingsRepositoryImpl implements SettingsRepository {
       await prefs.remove(_lastPlaybackSessionKey);
       return;
     }
-    await prefs.setString(_lastPlaybackSessionKey, jsonEncode(session.toJson()));
+    await prefs.setString(
+      _lastPlaybackSessionKey,
+      jsonEncode(session.toJson()),
+    );
   }
 }

@@ -33,7 +33,7 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
         _permissionTimeout,
       );
       if (granted) {
-        _onGranted();
+        await _onGranted();
         return;
       }
       if (!mounted) return;
@@ -61,7 +61,7 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
         _permissionTimeout,
       );
       if (granted) {
-        _onGranted();
+        await _onGranted();
         return;
       }
       if (!mounted) return;
@@ -81,17 +81,24 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
     }
   }
 
-  void _onGranted() {
+  Future<void> _onGranted() async {
     // Audio engine is already initialized in main() via NenAudioHandler.
     // Let StartupGate swap to HomeScreen — do not pushReplacement, or a
     // later MaterialApp rebuild would flash this branded gate again.
     if (!mounted) return;
-    ref.read(hasAudioPermissionProvider.notifier).state = true;
     setState(() {
       _granted = true;
-      _loading = false;
+      _loading = true;
       _errorMessage = null;
     });
+    // Clear any in-flight library query before HomeScreen mounts, otherwise
+    // rescan can drop the in-flight tracker and the first load races it.
+    try {
+      await ref.read(musicRepositoryProvider).rescanMedia();
+    } catch (_) {}
+    if (!mounted) return;
+    ref.read(hasAudioPermissionProvider.notifier).state = true;
+    setState(() => _loading = false);
   }
 
   @override

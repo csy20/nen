@@ -22,4 +22,7 @@ class ManagePlaylistUseCase {
 
   Future<void> rename(String id, String newName) =>
       _repository.renamePlaylist(id, newName);
+
+  Future<Playlist> replaceSongs(String playlistId, List<Song> songs) =>
+      _repository.replacePlaylistSongs(playlistId, songs);
 }

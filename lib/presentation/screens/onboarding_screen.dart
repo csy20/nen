@@ -81,13 +81,21 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
   }
 
+  bool get _reduceMotion {
+    final disable = MediaQuery.of(context).disableAnimations;
+    return disable || ref.read(settingsProvider).reduceMotion;
+  }
+
+  Duration get _pageDuration =>
+      _reduceMotion ? Duration.zero : const Duration(milliseconds: 380);
+
   void _next() {
     if (_isLastPage) {
       _complete();
       return;
     }
     _pageController.nextPage(
-      duration: const Duration(milliseconds: 350),
+      duration: _pageDuration,
       curve: Curves.easeOutCubic,
     );
   }
@@ -96,6 +104,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Widget build(BuildContext context) {
     final colors = NenTheme.of(context);
     final accent = Theme.of(context).colorScheme.primary;
+    final reduceMotion = _reduceMotion;
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -131,8 +140,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                     controller: _pageController,
                     itemCount: _pages.length,
                     onPageChanged: (index) => setState(() => _index = index),
+                    physics: reduceMotion
+                        ? const ClampingScrollPhysics()
+                        : const BouncingScrollPhysics(),
                     itemBuilder: (context, index) {
-                      return _OnboardingPage(data: _pages[index]);
+                      return _OnboardingPage(
+                        data: _pages[index],
+                        reduceMotion: reduceMotion,
+                      );
                     },
                   ),
                 ),
@@ -141,11 +156,12 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                   index: _index,
                   accent: accent,
                   inactive: colors.textTertiary,
+                  reduceMotion: reduceMotion,
                   onDotTap: (i) {
                     _pageController.animateToPage(
                       i,
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeOut,
+                      duration: _pageDuration,
+                      curve: Curves.easeOutCubic,
                     );
                   },
                 ),
@@ -197,9 +213,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 }
 
 class _OnboardingPage extends StatelessWidget {
-  const _OnboardingPage({required this.data});
+  const _OnboardingPage({required this.data, required this.reduceMotion});
 
   final _OnboardingPageData data;
+  final bool reduceMotion;
 
   @override
   Widget build(BuildContext context) {
@@ -210,7 +227,9 @@ class _OnboardingPage extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         return SingleChildScrollView(
-          physics: const BouncingScrollPhysics(),
+          physics: reduceMotion
+              ? const ClampingScrollPhysics()
+              : const BouncingScrollPhysics(),
           child: ConstrainedBox(
             constraints: BoxConstraints(minHeight: constraints.maxHeight),
             child: Padding(
@@ -218,28 +237,46 @@ class _OnboardingPage extends StatelessWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Container(
-                    width: 96,
-                    height: 96,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: isDark
-                          ? Colors.white.withValues(alpha: 0.05)
-                          : Colors.black.withValues(alpha: 0.04),
-                      border: Border.all(
-                        color: isDark
-                            ? Colors.white.withValues(alpha: 0.1)
-                            : Colors.black.withValues(alpha: 0.08),
-                        width: 0.5,
-                      ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: accent.withValues(alpha: 0.25),
-                          blurRadius: 32,
+                  TweenAnimationBuilder<double>(
+                    key: ValueKey(data.title),
+                    tween: Tween(begin: reduceMotion ? 1 : 0.86, end: 1),
+                    duration: Duration(milliseconds: reduceMotion ? 0 : 480),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, t, child) {
+                      return Opacity(
+                        opacity: t.clamp(0.0, 1.0),
+                        child: Transform.translate(
+                          offset: Offset(0, reduceMotion ? 0 : (1 - t) * 18),
+                          child: Transform.scale(
+                            scale: reduceMotion ? 1 : 0.94 + (t * 0.06),
+                            child: child,
+                          ),
                         ),
-                      ],
+                      );
+                    },
+                    child: Container(
+                      width: 96,
+                      height: 96,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.05)
+                            : Colors.black.withValues(alpha: 0.04),
+                        border: Border.all(
+                          color: isDark
+                              ? Colors.white.withValues(alpha: 0.1)
+                              : Colors.black.withValues(alpha: 0.08),
+                          width: 0.5,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: accent.withValues(alpha: 0.25),
+                            blurRadius: 32,
+                          ),
+                        ],
+                      ),
+                      child: Icon(data.icon, size: 44, color: accent),
                     ),
-                    child: Icon(data.icon, size: 44, color: accent),
                   ),
                   const SizedBox(height: 28),
                   Text(
@@ -295,6 +332,7 @@ class _DotIndicators extends StatelessWidget {
     required this.accent,
     required this.inactive,
     required this.onDotTap,
+    required this.reduceMotion,
   });
 
   final int count;
@@ -302,6 +340,7 @@ class _DotIndicators extends StatelessWidget {
   final Color accent;
   final Color inactive;
   final ValueChanged<int> onDotTap;
+  final bool reduceMotion;
 
   @override
   Widget build(BuildContext context) {
@@ -313,7 +352,7 @@ class _DotIndicators extends StatelessWidget {
         return GestureDetector(
           onTap: () => onDotTap(i),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 220),
+            duration: Duration(milliseconds: reduceMotion ? 0 : 220),
             curve: Curves.easeOut,
             margin: const EdgeInsets.symmetric(horizontal: 4),
             width: selected ? 22 : 8,

@@ -1,9 +1,17 @@
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
+
+import 'library_media_store.dart';
 
 /// Handles runtime permission requests for audio media access.
 class PermissionService {
+  PermissionService({LibraryMediaStore? library})
+    : _library = library ?? LibraryMediaStore();
+
+  final LibraryMediaStore _library;
+
   /// Request the appropriate audio permission based on platform/version.
   ///
   /// Android 13+ (API 33): READ_MEDIA_AUDIO
@@ -15,16 +23,16 @@ class PermissionService {
       // Required for foreground service media playback notifications.
       await Permission.notification.request();
 
-      // On Android 13+, request READ_MEDIA_AUDIO.
-      // On Android 12 and below, request READ_EXTERNAL_STORAGE.
-      // permission_handler handles version detection internally for
-      // Permission.audio (maps to READ_MEDIA_AUDIO on 33+).
+      // Request both. Permission.audio is READ_MEDIA_AUDIO on API 33+ and a
+      // no-op below that. Permission.storage is READ_EXTERNAL_STORAGE on
+      // API 32- and a no-op on 33+. Asking both avoids a false "granted"
+      // on older devices if audio is vacuously granted.
       final audioStatus = await Permission.audio.request();
-      if (audioStatus.isGranted) return true;
-
-      // Fallback for older Android versions
       final storageStatus = await Permission.storage.request();
-      return storageStatus.isGranted;
+      if (!audioStatus.isGranted && !storageStatus.isGranted) {
+        return false;
+      }
+      return _mediaStoreAccessible();
     }
 
     if (Platform.isIOS) {
@@ -41,12 +49,28 @@ class PermissionService {
   /// Check whether we already have permission.
   Future<bool> hasAudioPermission() async {
     if (Platform.isAndroid) {
-      if (await Permission.audio.isGranted) return true;
-      return Permission.storage.isGranted;
+      final osGranted =
+          await Permission.audio.isGranted ||
+          await Permission.storage.isGranted;
+      if (!osGranted) return false;
+      return _mediaStoreAccessible();
     }
     if (Platform.isIOS) {
       return Permission.mediaLibrary.isGranted;
     }
     return true;
+  }
+
+  /// OS grant can disagree with MediaStore on some OEMs / after updates.
+  Future<bool> _mediaStoreAccessible() async {
+    try {
+      return await _library.probe();
+    } on MissingPluginException {
+      // Channel not attached yet; trust the OS grant for the gate.
+      return true;
+    } on PlatformException catch (error) {
+      if (error.code == 'permission_denied') return false;
+      return true;
+    }
   }
 }

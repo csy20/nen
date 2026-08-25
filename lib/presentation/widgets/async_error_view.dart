@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 
+import '../../data/services/library_media_store.dart';
 import '../theme/nen_theme.dart';
 
 class AsyncErrorView extends StatelessWidget {
@@ -17,6 +19,9 @@ class AsyncErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = NenTheme.of(context);
+    final libraryError = error;
+    final showSettings =
+        libraryError is LibraryAccessException && libraryError.permissionDenied;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -39,7 +44,7 @@ class AsyncErrorView extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              '$error',
+              libraryErrorMessage(error),
               textAlign: TextAlign.center,
               style: TextStyle(color: colors.textTertiary, fontSize: 12),
             ),
@@ -49,6 +54,13 @@ class AsyncErrorView extends StatelessWidget {
               icon: const Icon(Icons.refresh_rounded, size: 18),
               label: const Text('Retry'),
             ),
+            if (showSettings) ...[
+              const SizedBox(height: 8),
+              TextButton(
+                onPressed: openAppSettings,
+                child: const Text('Open App Settings'),
+              ),
+            ],
           ],
         ),
       ),

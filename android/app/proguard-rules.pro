@@ -2,9 +2,12 @@
 # Keep Flutter engine and plugin registrant
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
+-keep class * implements io.flutter.embedding.engine.plugins.FlutterPlugin { *; }
+-keep class * implements io.flutter.embedding.engine.plugins.activity.ActivityAware { *; }
 
-# App MethodChannel / EventChannel plugins (visualizer, MainActivity)
+# App MethodChannel / EventChannel plugins (visualizer, MainActivity, library)
 -keep class dev.csy20.nen.** { *; }
+-keep class dev.csy20.nen.LibraryMediaStorePlugin { *; }
 
 # ── audio_service ────────────────────────────────────────────────────
 -keep class com.ryanheise.audioservice.** { *; }
@@ -14,6 +17,10 @@
 
 # ── on_audio_query ───────────────────────────────────────────────────
 -keep class com.lucasjosino.on_audio_query.** { *; }
+-keepclassmembers class com.lucasjosino.on_audio_query.PluginProvider {
+    *;
+}
+-keep class kotlin.UninitializedPropertyAccessException { *; }
 
 # ── in_app_review (Play In-App Review API) ───────────────────────────
 -keep class com.google.android.play.core.review.** { *; }
