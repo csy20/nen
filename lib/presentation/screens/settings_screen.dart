@@ -76,7 +76,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             children: [
               _CustomSwitchTile(
                 title: 'Crossfade Tracks',
-                subtitle: 'Smooth transition between songs',
+                subtitle:
+                    'Overlaps short clips. Library tracks play gapless instead.',
                 value: settings.crossfadeEnabled,
                 activeColor: Colors.cyanAccent,
                 onChanged: (_) =>
@@ -122,7 +123,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               _DividerLine(),
               _CustomListTile(
                 title: 'Audio Engine',
-                subtitle: 'SoLoud + system decoder · all common formats',
+                subtitle: 'System decoder · MP3, FLAC, M4A, and more',
                 trailing: Icon(
                   Icons.memory_rounded,
                   color: colors.textSecondary,

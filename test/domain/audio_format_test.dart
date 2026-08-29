@@ -11,8 +11,8 @@ void main() {
   });
 
   group('AudioFormat.preferredBackend', () {
-    test('uses SoLoud only for short clips that fit in memory', () {
-      for (final ext in ['mp3', 'wav', 'flac', 'ogg', 'opus']) {
+    test('uses ExoPlayer for every on-device format', () {
+      for (final ext in ['mp3', 'wav', 'flac', 'ogg', 'opus', 'm4a']) {
         expect(
           AudioFormat.preferredBackend(
             extension: ext,
@@ -21,7 +21,7 @@ void main() {
             fileSize: 512 * 1024,
             duration: const Duration(seconds: 8),
           ),
-          AudioBackend.soloud,
+          AudioBackend.system,
           reason: ext,
         );
       }

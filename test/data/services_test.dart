@@ -1,5 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nen/data/services/fft_processor.dart';
+import 'package:nen/data/services/system_equalizer.dart';
+import 'package:nen/data/services/system_fft_capture.dart';
 import 'package:nen/presentation/providers/settings_provider.dart';
 
 void main() {
@@ -36,6 +38,34 @@ void main() {
       // Clamped to 1.0
       expect(bands.subBass, lessThanOrEqualTo(1.0));
       expect(bands.bass, lessThanOrEqualTo(1.0));
+    });
+  });
+
+  group('SystemFftCapture', () {
+    test('attach is a no-op and never marks data live', () async {
+      final capture = SystemFftCapture();
+      await capture.attach(12);
+      expect(capture.hasFreshData, isFalse);
+      final dest = List<double>.filled(8, 1.0);
+      expect(capture.copyInto(dest), isFalse);
+      expect(dest, everyElement(0.0));
+      await capture.detach();
+      expect(capture.hasFreshData, isFalse);
+    });
+  });
+
+  group('eqGainToMillibels', () {
+    test('maps unity gain to 0 dB', () {
+      expect(eqGainToMillibels(1.0), 0);
+    });
+
+    test('maps 2.0x to +12 dB in millibels', () {
+      expect(eqGainToMillibels(2.0), 1200);
+    });
+
+    test('clamps to the device millibel range', () {
+      expect(eqGainToMillibels(4.0, minMb: -1500, maxMb: 1500), 1500);
+      expect(eqGainToMillibels(0.0, minMb: -1500, maxMb: 1500), -1200);
     });
   });
 

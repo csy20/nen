@@ -22,6 +22,8 @@ class _FakeAudioRepository implements AudioRepository {
   bool crossfadeEnabled = false;
   Duration crossfadeDuration = const Duration(seconds: 3);
   final List<Song> playedSongs = [];
+  Song? nextPreloaded;
+  int playPreloadedCalls = 0;
 
   @override
   Stream<void> get completionStream => _completionController.stream;
@@ -33,11 +35,28 @@ class _FakeAudioRepository implements AudioRepository {
   bool get isVisualizerLive => false;
 
   @override
+  bool get isEqualizerLive => false;
+
+  @override
+  bool get supportsCrossfade => false;
+
+  @override
+  Song? get preloadedSong => nextPreloaded;
+
+  @override
   Duration get currentDuration =>
       playedSongs.isEmpty ? Duration.zero : playedSongs.last.duration;
 
   @override
   Stream<Duration> get positionStream => _positionController.stream;
+
+  @override
+  Stream<bool> get playingStream => const Stream.empty();
+
+  bool _playing = false;
+
+  @override
+  bool get isPlaying => _playing;
 
   @override
   Future<void> dispose() async {
@@ -58,21 +77,34 @@ class _FakeAudioRepository implements AudioRepository {
   }
 
   @override
-  Future<void> pause() async {}
+  Future<void> pause() async {
+    _playing = false;
+  }
 
   @override
   Future<void> play(Song song) async {
     playedSongs.add(song);
+    _playing = true;
   }
 
   @override
-  Future<void> playPreloaded() async {}
+  Future<bool> playPreloaded() async {
+    playPreloadedCalls++;
+    final next = nextPreloaded;
+    if (next == null) return false;
+    playedSongs.add(next);
+    nextPreloaded = null;
+    _playing = true;
+    return true;
+  }
 
   @override
   Future<void> preload(Song song) async {}
 
   @override
-  Future<void> resume() async {}
+  Future<void> resume() async {
+    _playing = true;
+  }
 
   @override
   Future<void> seek(Duration position) async {
@@ -431,6 +463,22 @@ void main() {
       expect(audioHandler.playbackState.value.queueIndex, 0);
     });
 
+    test('next uses a preloaded track without a full reload', () async {
+      final notifier = container.read(playbackProvider.notifier);
+
+      await notifier.playQueue(const [_songA, _songB]);
+      await Future<void>.delayed(Duration.zero);
+      audioRepository.nextPreloaded = _songB;
+
+      await notifier.next();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(audioRepository.playPreloadedCalls, 1);
+      expect(audioRepository.playedSongs, const [_songA, _songB]);
+      expect(container.read(playbackProvider).currentSong, _songB);
+      expect(container.read(playbackProvider).queueIndex, 1);
+    });
+
     test('shuffle next from last index still plays another track', () async {
       final notifier = container.read(playbackProvider.notifier);
 
@@ -465,6 +513,41 @@ void main() {
   });
 
   group('last session restore', () {
+    test('wasPlaying from disk does not auto-start the engine', () async {
+      final audioRepository = _FakeAudioRepository();
+      final audioHandler = NenAudioHandler(audioRepository);
+      await audioHandler.init();
+      addTearDown(audioHandler.teardown);
+
+      final settings = _FakeSettingsRepository()
+        ..lastSession = const LastPlaybackSession(
+          queueIds: [1],
+          queueIndex: 0,
+          positionMs: 1500,
+          wasPlaying: true,
+        );
+
+      final container = ProviderContainer(
+        overrides: [
+          audioHandlerProvider.overrideWithValue(audioHandler),
+          settingsRepositoryProvider.overrideWithValue(settings),
+          musicRepositoryProvider.overrideWithValue(
+            _FakeMusicRepository(const [_songA, _songB]),
+          ),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      container.read(playbackProvider);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      final restored = container.read(playbackProvider);
+      expect(restored.currentSong, _songA);
+      expect(restored.isPlaying, isFalse);
+      expect(audioRepository.playedSongs, isEmpty);
+    });
+
     test('restores now playing from disk and play reloads the engine', () async {
       final audioRepository = _FakeAudioRepository();
       final audioHandler = NenAudioHandler(audioRepository);

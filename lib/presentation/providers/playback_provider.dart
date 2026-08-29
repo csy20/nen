@@ -46,6 +46,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
   final Random _random = Random();
   StreamSubscription<audio_svc.PlaybackState>? _pbStateSub;
   StreamSubscription<audio_svc.AudioServiceRepeatMode>? _repeatModeSub;
+  StreamSubscription<bool>? _enginePlayingSub;
   int? _crossfadeTriggeredSongId;
   bool _completionTransitionInFlight = false;
   Timer? _persistDebounce;
@@ -63,13 +64,18 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
       final metadata = state.currentSong?.duration ?? Duration.zero;
       state = state.copyWith(
         position: ps.updatePosition,
-        isPlaying: ps.playing,
+        isPlaying: _handler.enginePlaying,
         duration: AudioFormat.coalesceDuration(decoded, metadata),
       );
       _maybeStartCrossfade(ps.updatePosition);
       if (state.currentSong != null) {
         _persistSession();
       }
+    });
+
+    _enginePlayingSub = _handler.enginePlayingStream.listen((playing) {
+      if (state.isPlaying == playing) return;
+      state = state.copyWith(isPlaying: playing);
     });
 
     _repeatModeSub = _handler.repeatModeStream.listen((repeatMode) {
@@ -145,7 +151,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
   Future<void> pause() async {
     try {
       await _handler.pause();
-      state = state.copyWith(isPlaying: false);
+      state = state.copyWith(isPlaying: _handler.enginePlaying);
       _persistSession();
     } catch (e) {
       _emitError('Failed to pause');
@@ -168,7 +174,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
         return;
       }
       await _handler.play();
-      state = state.copyWith(isPlaying: true);
+      state = state.copyWith(isPlaying: _handler.enginePlaying);
       _persistSession();
     } catch (e) {
       _emitError('Failed to resume');
@@ -176,7 +182,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
   }
 
   Future<void> togglePlayPause() async {
-    if (state.isPlaying) {
+    if (_handler.enginePlaying || state.isPlaying) {
       await pause();
     } else {
       await resume();
@@ -219,8 +225,11 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
     }
 
     final song = state.queue[nextIndex];
-    final requestId = ++_playRequestId;
     _crossfadeTriggeredSongId = null;
+    if (await _continuePreloaded(song, nextIndex)) {
+      return;
+    }
+    final requestId = ++_playRequestId;
     state = state.copyWith(
       queueIndex: nextIndex,
       currentSong: song,
@@ -230,6 +239,26 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
     );
     _persistSession();
     unawaited(_runPlay(requestId, song, queue: state.queue, queueIndex: nextIndex));
+  }
+
+  Future<bool> _continuePreloaded(Song song, int queueIndex) async {
+    if (_handler.audioRepo.preloadedSong?.id != song.id) {
+      return false;
+    }
+    final advanced = await _handler.audioRepo.playPreloaded();
+    if (!advanced) return false;
+    _engineHasTrack = true;
+    state = state.copyWith(
+      queueIndex: queueIndex,
+      currentSong: song,
+      isPlaying: true,
+      position: Duration.zero,
+      duration: song.duration,
+    );
+    _updateDuration(song);
+    _trackRecentlyPlayed(song);
+    _persistSession();
+    return true;
   }
 
   Future<void> previous() async {
@@ -517,7 +546,6 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
     var queue = <Song>[];
     var index = 0;
     var position = Duration.zero;
-    var wasPlaying = false;
 
     if (session != null && session.queueIds.isNotEmpty) {
       queue = [
@@ -533,7 +561,6 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
         position = Duration(
           milliseconds: session.positionMs.clamp(0, maxMs > 0 ? maxMs : session.positionMs),
         );
-        wasPlaying = session.wasPlaying;
       }
     }
 
@@ -556,20 +583,8 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
       isPlaying: false,
     );
     _engineHasTrack = false;
-
-    if (wasPlaying) {
-      final requestId = ++_playRequestId;
-      unawaited(
-        _runPlay(
-          requestId,
-          song,
-          queue: queue,
-          queueIndex: index,
-          resumeAt: position,
-        ),
-      );
-      state = state.copyWith(isPlaying: true);
-    }
+    // Never auto-resume after an update or cold start. Play JNI/effects
+    // on launch is how Play builds were dying.
   }
 
   void _persistSession() {
@@ -612,6 +627,9 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
 
   void _maybeStartCrossfade(Duration position) {
     if (_completionTransitionInFlight) return;
+    // System/ExoPlayer has no real fade; calling next() here just cuts the
+    // current track early. Only SoLoud can overlap two handles.
+    if (!_handler.audioRepo.supportsCrossfade) return;
     final currentSong = state.currentSong;
     if (!state.crossfadeEnabled ||
         !state.isPlaying ||
@@ -653,6 +671,7 @@ class PlaybackNotifier extends StateNotifier<PlaybackState> {
     _handler.onSkipToPrevious = null;
     _pbStateSub?.cancel();
     _repeatModeSub?.cancel();
+    _enginePlayingSub?.cancel();
     _persistDebounce?.cancel();
     _sessionPersistDebounce?.cancel();
     super.dispose();

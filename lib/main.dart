@@ -1,6 +1,6 @@
 import 'dart:async';
-import 'dart:ui' as ui;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +11,7 @@ import 'data/repositories/settings_repository_impl.dart';
 import 'data/services/nen_audio_handler.dart';
 import 'data/services/permission_service.dart';
 import 'presentation/providers/di_providers.dart';
+import 'presentation/providers/equalizer_provider.dart';
 import 'presentation/providers/playback_provider.dart';
 import 'presentation/providers/playlist_provider.dart';
 import 'presentation/providers/settings_provider.dart';
@@ -20,46 +21,71 @@ import 'presentation/theme/nen_theme.dart';
 final GlobalKey<ScaffoldMessengerState> rootScaffoldMessengerKey =
     GlobalKey<ScaffoldMessengerState>();
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-
-  // Lock to portrait for the immersive now-playing experience
-  SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-  ]);
-
-  // Dark system chrome
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
-      systemNavigationBarColor: NenTheme.trueBlack,
-      systemNavigationBarIconBrightness: Brightness.light,
-    ),
+void main() {
+  runZonedGuarded(
+    () {
+      WidgetsFlutterBinding.ensureInitialized();
+      FlutterError.onError = (details) {
+        FlutterError.presentError(details);
+        debugPrint('FlutterError: ${details.exceptionAsString()}');
+      };
+      PlatformDispatcher.instance.onError = (error, stack) {
+        debugPrint('PlatformDispatcher error: $error');
+        return true;
+      };
+      unawaited(_boot());
+    },
+    (error, stack) {
+      debugPrint('zone error: $error\n$stack');
+    },
   );
+}
 
-  // Shader compile is independent of first paint.
-  unawaited(
-    ui.FragmentProgram.fromAsset(
-      'shaders/visualizer.frag',
-    ).then((_) {}, onError: (_) {}),
-  );
+Future<void> _boot() async {
+  try {
+    SystemChrome.setPreferredOrientations([
+      DeviceOrientation.portraitUp,
+      DeviceOrientation.portraitDown,
+    ]);
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        systemNavigationBarColor: NenTheme.trueBlack,
+        systemNavigationBarIconBrightness: Brightness.light,
+      ),
+    );
+  } catch (e) {
+    debugPrint('chrome setup error: $e');
+  }
 
-  // Onboarding/permission flags plus audio_service in parallel so a slow
-  // MediaStore probe does not serialize behind AudioService.init.
   final audioRepo = AudioRepositoryImpl();
   final musicRepo = MusicRepositoryImpl();
   final settingsRepo = SettingsRepositoryImpl();
   final permissionService = PermissionService();
-  final startup = await Future.wait<Object?>([
-    settingsRepo.getHasSeenOnboarding(),
-    permissionService.hasAudioPermission(),
-    _initAudioHandlerWithFallback(audioRepo, musicRepo),
-  ]);
-  final hasSeenOnboarding = startup[0] as bool;
-  final hasAudioPermission = startup[1] as bool;
-  final globalAudioHandler = startup[2] as NenAudioHandler;
+
+  var hasSeenOnboarding = false;
+  var hasAudioPermission = false;
+  late NenAudioHandler handler;
+
+  try {
+    handler = NenAudioHandler(audioRepo, musicRepo: musicRepo);
+    await handler.init();
+  } catch (e) {
+    debugPrint('local audio handler init error: $e');
+    handler = NenAudioHandler(audioRepo, musicRepo: musicRepo);
+  }
+
+  try {
+    hasSeenOnboarding = await settingsRepo.getHasSeenOnboarding();
+  } catch (e) {
+    debugPrint('onboarding flag error: $e');
+  }
+  try {
+    hasAudioPermission = await permissionService.hasAudioPermission();
+  } catch (e) {
+    debugPrint('permission probe error: $e');
+  }
 
   runApp(
     ProviderScope(
@@ -68,29 +94,33 @@ void main() async {
         musicRepositoryProvider.overrideWithValue(musicRepo),
         settingsRepositoryProvider.overrideWithValue(settingsRepo),
         permissionServiceProvider.overrideWithValue(permissionService),
-        audioHandlerProvider.overrideWithValue(globalAudioHandler),
+        audioHandlerProvider.overrideWithValue(handler),
         hasSeenOnboardingProvider.overrideWith((ref) => hasSeenOnboarding),
         hasAudioPermissionProvider.overrideWith((ref) => hasAudioPermission),
       ],
       child: const NenApp(),
     ),
   );
+
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    unawaited(_promoteAudioService(audioRepo, musicRepo, handler));
+  });
 }
 
-Future<NenAudioHandler> _initAudioHandlerWithFallback(
+Future<void> _promoteAudioService(
   AudioRepositoryImpl audioRepo,
   MusicRepositoryImpl musicRepo,
+  NenAudioHandler existing,
 ) async {
   try {
-    return await initAudioHandler(
+    await initAudioHandler(
       audioRepo,
       musicRepo: musicRepo,
-    ).timeout(const Duration(seconds: 8));
-  } catch (_) {
-    // If audio_service stalls/fails during startup, keep the app bootable.
-    final handler = NenAudioHandler(audioRepo, musicRepo: musicRepo);
-    await handler.init();
-    return handler;
+      existing: existing,
+    ).timeout(const Duration(seconds: 6));
+    existing.syncFromEngine();
+  } catch (e) {
+    debugPrint('audio_service optional init failed: $e');
   }
 }
 
@@ -111,7 +141,6 @@ class _NenAppState extends ConsumerState<NenApp> {
   @override
   void initState() {
     super.initState();
-    // Load persisted settings (including accent color)
     Future.microtask(() async {
       try {
         await Future.wait([
@@ -119,6 +148,7 @@ class _NenAppState extends ConsumerState<NenApp> {
           ref.read(favoritesProvider.notifier).load(),
           ref.read(recentlyPlayedProvider.notifier).load(),
           ref.read(playlistsProvider.notifier).load(),
+          ref.read(equalizerProvider.notifier).load(),
         ]);
       } catch (e) {
         debugPrint('Failed to load initial data: $e');
@@ -149,7 +179,6 @@ class _NenAppState extends ConsumerState<NenApp> {
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
 
-    // Update system chrome based on theme mode
     final isDark =
         settings.themeMode == NenThemeMode.dark ||
         (settings.themeMode == NenThemeMode.system &&

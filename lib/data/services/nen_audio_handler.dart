@@ -18,6 +18,7 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
   final MusicRepository? _musicRepo;
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<void>? _completionSub;
+  StreamSubscription<bool>? _playingSub;
   StreamSubscription<AudioInterruptionEvent>? _interruptionSub;
   StreamSubscription<void>? _noisySub;
   DateTime _lastPositionBroadcast = DateTime.fromMillisecondsSinceEpoch(0);
@@ -48,6 +49,10 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
     });
 
     _positionSub = _audioRepo.positionStream.listen(_onPosition);
+    _playingSub = _audioRepo.playingStream.listen((playing) {
+      _playing = playing;
+      _broadcastState();
+    });
 
     await _audioRepo.initialize();
     await _configureAudioSession();
@@ -82,6 +87,20 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
       await _audioRepo.play(song);
     } on PlaybackSupersededException {
       return;
+    } catch (e, st) {
+      debugPrint('playSong failed: $e\n$st');
+      _playing = false;
+      _broadcastState();
+      if (e is AudioPlaybackException) rethrow;
+      throw AudioPlaybackException.unsupported(
+        title: song.title,
+        formatLabel: AudioFormat.displayName(
+          AudioFormat.normalizeExtension(
+            song.fileExtension,
+            fallbackPath: song.filePath,
+          ),
+        ),
+      );
     }
     final duration = AudioFormat.coalesceDuration(
       _audioRepo.currentDuration,
@@ -93,22 +112,33 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
         current.duration != duration) {
       mediaItem.add(current.copyWith(duration: duration));
     }
+    _playing = _audioRepo.isPlaying;
     _broadcastState(position: Duration.zero, queueIndex: queueIndex);
   }
 
   Duration get currentDuration => _audioRepo.currentDuration;
 
+  Stream<bool> get enginePlayingStream => _audioRepo.playingStream;
+
+  bool get enginePlaying => _audioRepo.isPlaying;
+
+  /// Push engine truth to MediaSession after AudioService.init.
+  void syncFromEngine() {
+    _playing = _audioRepo.isPlaying;
+    _broadcastState();
+  }
+
   @override
   Future<void> play() async {
     await _audioRepo.resume();
-    _playing = true;
+    _playing = _audioRepo.isPlaying;
     _broadcastState();
   }
 
   @override
   Future<void> pause() async {
     await _audioRepo.pause();
-    _playing = false;
+    _playing = _audioRepo.isPlaying;
     _broadcastState();
   }
 
@@ -321,6 +351,7 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
   Future<void> teardown() async {
     await _positionSub?.cancel();
     await _completionSub?.cancel();
+    await _playingSub?.cancel();
     await _interruptionSub?.cancel();
     await _noisySub?.cancel();
     await _audioRepo.dispose();
@@ -330,21 +361,25 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
 Future<NenAudioHandler> initAudioHandler(
   AudioRepository audioRepo, {
   MusicRepository? musicRepo,
+  NenAudioHandler? existing,
 }) async {
   final handler = await as_lib.AudioService.init(
-    builder: () => NenAudioHandler(audioRepo, musicRepo: musicRepo),
+    builder: () =>
+        existing ?? NenAudioHandler(audioRepo, musicRepo: musicRepo),
     config: const as_lib.AudioServiceConfig(
       androidNotificationChannelId: 'dev.csy20.nen.audio',
       androidNotificationChannelName: 'Now playing',
       androidNotificationChannelDescription: 'Playback controls and track info',
       androidNotificationIcon: 'drawable/ic_stat_nen',
       notificationColor: Color(0xFF8B7EC8),
-      androidNotificationOngoing: true,
+      androidNotificationOngoing: false,
       androidStopForegroundOnPause: true,
       artDownscaleWidth: 192,
       artDownscaleHeight: 192,
     ),
   );
-  await handler.init();
+  if (!identical(handler, existing)) {
+    await handler.init();
+  }
   return handler;
 }

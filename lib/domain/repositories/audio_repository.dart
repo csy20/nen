@@ -32,6 +32,12 @@ abstract class AudioRepository {
   /// Stream of playback completion events.
   Stream<void> get completionStream;
 
+  /// Engine playing flag. UI must follow this, not MediaSession.
+  Stream<bool> get playingStream;
+
+  /// Latest engine playing flag.
+  bool get isPlaying;
+
   /// Get raw FFT data for the visualizer.
   List<double> getFFTData();
 
@@ -39,7 +45,13 @@ abstract class AudioRepository {
   Future<void> preload(Song song);
 
   /// Play the pre-loaded song immediately (gapless transition).
-  Future<void> playPreloaded();
+  ///
+  /// Returns true when the engine continued into [preloadedSong] without a
+  /// full source reload (concatenating playlist or SoLoud preload).
+  Future<bool> playPreloaded();
+
+  /// Next track already buffered on the active backend, if any.
+  Song? get preloadedSong;
 
   /// Set playback speed (0.5–2.0).
   Future<void> setSpeed(double speed);
@@ -65,8 +77,14 @@ abstract class AudioRepository {
   /// Whether the engine is currently initialized.
   bool get isInitialized;
 
-  /// True when SoLoud is the active backend and FFT data is live.
+  /// True when FFT capture is attached to the current backend.
   bool get isVisualizerLive;
+
+  /// True when EQ is enabled and attached to the current audio session.
+  bool get isEqualizerLive;
+
+  /// True when the active backend can actually fade between tracks.
+  bool get supportsCrossfade;
 
   /// Decoder-reported duration of the current source, or [Duration.zero].
   Duration get currentDuration;

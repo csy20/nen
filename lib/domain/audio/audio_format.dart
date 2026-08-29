@@ -16,7 +16,7 @@ class AudioFormat {
   /// Skip SoLoud for giant files; ExoPlayer (just_audio) streams them.
   static const int soloudMaxFileBytes = 80 * 1024 * 1024;
 
-  static const _soloudExtensions = {
+  static const soloudExtensions = {
     'mp3',
     'wav',
     'wave',
@@ -27,7 +27,7 @@ class AudioFormat {
   };
 
   /// Extensions the system decoder is more likely to handle than SoLoud.
-  static const _systemFirstExtensions = {
+  static const systemFirstExtensions = {
     'm4a',
     'm4b',
     'aac',
@@ -85,24 +85,8 @@ class AudioFormat {
     int fileSize = 0,
     Duration duration = Duration.zero,
   }) {
-    final ext = normalizeExtension(extension, fallbackPath: filePath);
-    if (!fileIsReadable) {
-      return AudioBackend.system;
-    }
-    if (!isSoLoudSafe(fileSizeBytes: fileSize, duration: duration)) {
-      return AudioBackend.system;
-    }
-    // Disk-streamed MP3/FLAC in SoLoud often reports ~1s length and
-    // produces no audible output. Library tracks go to ExoPlayer.
-    if (!canSafelyDecodeToMemory(fileSizeBytes: fileSize, duration: duration)) {
-      return AudioBackend.system;
-    }
-    if (_systemFirstExtensions.contains(ext)) {
-      return AudioBackend.system;
-    }
-    if (_soloudExtensions.contains(ext) || ext.isEmpty) {
-      return AudioBackend.soloud;
-    }
+    // Playback is just_audio/ExoPlayer only. SoLoud is not linked in Play
+    // builds (native .so aborted launch on Android 15).
     return AudioBackend.system;
   }
 

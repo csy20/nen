@@ -4,20 +4,25 @@ import android.content.Context
 import android.os.Bundle
 import android.util.Log
 import com.lucasjosino.on_audio_query.PluginProvider
-import com.ryanheise.audioservice.AudioServiceActivity
+import com.ryanheise.audioservice.AudioServicePlugin
+import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 
-class MainActivity : AudioServiceActivity() {
+class MainActivity : FlutterActivity() {
     override fun provideFlutterEngine(context: Context): FlutterEngine {
-        val engine = super.provideFlutterEngine(context)
-            ?: error("AudioService Flutter engine missing")
-        registerNenPlugins(engine)
-        return engine
+        return AudioServicePlugin.getFlutterEngine(context)
     }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        registerNenPlugins(flutterEngine)
+        try {
+            if (!flutterEngine.plugins.has(LibraryMediaStorePlugin::class.java)) {
+                flutterEngine.plugins.add(LibraryMediaStorePlugin())
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "library plugin register failed", t)
+        }
+        bindOnAudioQueryContext()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,19 +35,6 @@ class MainActivity : AudioServiceActivity() {
         bindOnAudioQueryContext()
     }
 
-    private fun registerNenPlugins(engine: FlutterEngine) {
-        if (!engine.plugins.has(LibraryMediaStorePlugin::class.java)) {
-            engine.plugins.add(LibraryMediaStorePlugin())
-        }
-        PlaybackVisualizerPlugin.register(engine.dartExecutor.binaryMessenger)
-        bindOnAudioQueryContext()
-    }
-
-    /**
-     * on_audio_query only stores context in onAttachedToActivity. audio_service
-     * starts Dart before that callback, and minified Play builds can skip it.
-     * Force-feed the activity so leftover plugin calls don't crash.
-     */
     private fun bindOnAudioQueryContext() {
         try {
             PluginProvider.set(this)

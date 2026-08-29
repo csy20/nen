@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
 
@@ -48,29 +49,34 @@ class PermissionService {
 
   /// Check whether we already have permission.
   Future<bool> hasAudioPermission() async {
-    if (Platform.isAndroid) {
-      final osGranted =
-          await Permission.audio.isGranted ||
-          await Permission.storage.isGranted;
-      if (!osGranted) return false;
-      return _mediaStoreAccessible();
+    try {
+      if (Platform.isAndroid) {
+        final osGranted =
+            await Permission.audio.isGranted ||
+            await Permission.storage.isGranted;
+        if (!osGranted) return false;
+        return _mediaStoreAccessible();
+      }
+      if (Platform.isIOS) {
+        return Permission.mediaLibrary.isGranted;
+      }
+      return true;
+    } catch (e) {
+      debugPrint('hasAudioPermission error: $e');
+      return false;
     }
-    if (Platform.isIOS) {
-      return Permission.mediaLibrary.isGranted;
-    }
-    return true;
   }
 
   /// OS grant can disagree with MediaStore on some OEMs / after updates.
   Future<bool> _mediaStoreAccessible() async {
     try {
       return await _library.probe();
-    } on MissingPluginException {
-      // Channel not attached yet; trust the OS grant for the gate.
-      return true;
-    } on PlatformException catch (error) {
-      if (error.code == 'permission_denied') return false;
-      return true;
+    } catch (error) {
+      if (error is PlatformException && error.code == 'permission_denied') {
+        return false;
+      }
+      if (error is MissingPluginException) return true;
+      return false;
     }
   }
 }

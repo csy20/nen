@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/providers.dart';
 import '../theme/nen_theme.dart';
 import '../theme/page_transitions.dart';
+import '../widgets/audio_visualizer_bars.dart';
 import 'library_screen.dart'; // for FavoritesTab, AlbumsTab, ArtistsTab, FoldersTab
 import 'now_playing_screen.dart';
 import 'playlists_screen.dart';
@@ -407,61 +408,17 @@ class _HomeNowPlayingCard extends ConsumerWidget {
             ),
             const SizedBox(height: 16),
             // Bottom Area (Visualizer Icon)
-            Row(
-              children: [
-                _VisualizerBars(isPlaying: isPlaying),
-                const Spacer(),
-              ],
+            const SizedBox(
+              height: 20,
+              child: AudioVisualizerBars(
+                barCount: 20,
+                maxHeight: 16,
+                floorHeight: 3,
+                strokeWidth: 3,
+              ),
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-class _VisualizerBars extends StatelessWidget {
-  final bool isPlaying;
-
-  const _VisualizerBars({required this.isPlaying});
-
-  @override
-  Widget build(BuildContext context) {
-    // A simple static visualizer representation
-    final colors = NenTheme.of(context);
-    final barColor = colors.textTertiary;
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        _VsBar(height: 12, color: barColor),
-        const SizedBox(width: 4),
-        _VsBar(height: 20, color: barColor),
-        const SizedBox(width: 4),
-        _VsBar(height: 16, color: barColor),
-        const SizedBox(width: 4),
-        _VsBar(height: 24, color: barColor),
-        const SizedBox(width: 4),
-        _VsBar(height: 14, color: barColor),
-      ],
-    );
-  }
-}
-
-class _VsBar extends StatelessWidget {
-  final double height;
-  final Color color;
-
-  const _VsBar({required this.height, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 4,
-      height: height,
-      decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(2),
       ),
     );
   }

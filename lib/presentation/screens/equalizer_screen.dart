@@ -24,6 +24,7 @@ class EqualizerScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NenTheme.of(context);
     final eq = ref.watch(equalizerProvider);
+    final eqLive = ref.watch(equalizerLiveProvider);
 
     return Scaffold(
       backgroundColor: colors.background, // Match theme properly
@@ -54,6 +55,20 @@ class EqualizerScreen extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
           child: Column(
             children: [
+              Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Text(
+                  eq.isActive
+                      ? (eqLive
+                            ? 'EQ is applied to the current track'
+                            : 'EQ applies once a track is playing')
+                      : 'Turn on to shape the current track',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 13,
+                  ),
+                ),
+              ),
               // Preset chips
               SizedBox(
                 height: 48, // Taller pill containers

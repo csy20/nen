@@ -1,19 +1,24 @@
 # ── Flutter ───────────────────────────────────────────────────────────
-# Keep Flutter engine and plugin registrant
 -keep class io.flutter.** { *; }
 -keep class io.flutter.plugins.** { *; }
+-keep class io.flutter.embedding.** { *; }
 -keep class * implements io.flutter.embedding.engine.plugins.FlutterPlugin { *; }
 -keep class * implements io.flutter.embedding.engine.plugins.activity.ActivityAware { *; }
 
-# App MethodChannel / EventChannel plugins (visualizer, MainActivity, library)
+# App plugins
 -keep class dev.csy20.nen.** { *; }
--keep class dev.csy20.nen.LibraryMediaStorePlugin { *; }
 
 # ── audio_service ────────────────────────────────────────────────────
 -keep class com.ryanheise.audioservice.** { *; }
+-keep class com.ryanheise.audioservice.AudioService { *; }
+-keep class com.ryanheise.audioservice.MediaButtonReceiver { *; }
 
-# ── flutter_soloud (native audio engine) ─────────────────────────────
--keep class com.atsumeru.flutter_soloud.** { *; }
+# ── just_audio / ExoPlayer / Media3 ──────────────────────────────────
+-keep class com.ryanheise.just_audio.** { *; }
+-keep class com.google.android.exoplayer2.** { *; }
+-keep class androidx.media3.** { *; }
+-keep class androidx.media.** { *; }
+-keep class android.support.v4.media.** { *; }
 
 # ── on_audio_query ───────────────────────────────────────────────────
 -keep class com.lucasjosino.on_audio_query.** { *; }
@@ -22,14 +27,17 @@
 }
 -keep class kotlin.UninitializedPropertyAccessException { *; }
 
-# ── in_app_review (Play In-App Review API) ───────────────────────────
+# ── in_app_review ────────────────────────────────────────────────────
 -keep class com.google.android.play.core.review.** { *; }
 -keep class com.google.android.gms.tasks.** { *; }
 
 # ── General Android ──────────────────────────────────────────────────
 -keep class androidx.lifecycle.** { *; }
+-keepattributes *Annotation*
+-keepattributes SourceFile,LineNumberTable
+-keepattributes Signature
+-keepattributes Exceptions
 
-# Don't warn about missing classes from optional dependencies
 -dontwarn com.google.**
 -dontwarn org.bouncycastle.**
 -dontwarn org.conscrypt.**

@@ -1,17 +1,15 @@
 import 'dart:typed_data';
-import 'dart:ui';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../data/services/fft_processor.dart';
 import '../../domain/entities/entities.dart';
-import '../providers/di_providers.dart';
 import '../providers/library_providers.dart';
 import '../providers/playback_provider.dart';
 import '../providers/settings_provider.dart';
 import '../theme/nen_theme.dart';
 import '../theme/page_transitions.dart';
+import '../widgets/audio_visualizer_bars.dart';
 import '../widgets/neu_playback_button.dart';
 import '../widgets/overflow_marquee_text.dart';
 import '../widgets/song_actions_sheet.dart';
@@ -19,9 +17,6 @@ import 'equalizer_screen.dart';
 
 /// Hero tag shared with any source widget (e.g. mini player bar).
 const String _kHeroTag = 'now_playing_art';
-
-/// Number of audio-reactive bars in the inline visualizer.
-const int _kBarCount = 20;
 
 /// Lyrics panel visibility toggle (session-scoped).
 final lyricsVisibleProvider = StateProvider<bool>((ref) => false);
@@ -62,11 +57,11 @@ class NowPlayingScreen extends ConsumerWidget {
                     children: [
                       _buildTopBar(context, ref, sleepTimer),
                       // Add visualizer exactly as in the mockup
-                      SizedBox(
+                      const SizedBox(
                         height: 50,
-                        child: const Padding(
+                        child: Padding(
                           padding: EdgeInsets.symmetric(horizontal: 24),
-                          child: _VisualizerRowWidget(),
+                          child: AudioVisualizerBars(),
                         ),
                       ),
                       const Spacer(),
@@ -351,26 +346,11 @@ class NowPlayingScreen extends ConsumerWidget {
         ? playback.duration
         : (playback.currentSong?.duration ?? const Duration(seconds: 1));
 
-    final progressFraction = (position.inMilliseconds / duration.inMilliseconds)
-        .clamp(0.0, 1.0);
-
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 32),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Vertical bars representation
-          SizedBox(
-            height: 32,
-            child: CustomPaint(
-              size: const Size(double.infinity, 32),
-              painter: _DenseProgressBarPainter(
-                progress: progressFraction,
-                activeColor: colors.textSecondary,
-                inactiveColor: colors.textTertiary.withValues(alpha: 0.2),
-              ),
-            ),
-          ),
           SliderTheme(
             data: SliderTheme.of(context).copyWith(
               trackHeight: 3,
@@ -1280,19 +1260,25 @@ class _VinylPainter extends CustomPainter {
 
 // ── Rotating album art ────────────────────────────────────────────────
 
-class _RotatingAlbumArt extends StatefulWidget {
+class _RotatingAlbumArt extends ConsumerStatefulWidget {
   final bool isPlaying;
   final Widget child;
 
   const _RotatingAlbumArt({required this.isPlaying, required this.child});
 
   @override
-  State<_RotatingAlbumArt> createState() => _RotatingAlbumArtState();
+  ConsumerState<_RotatingAlbumArt> createState() => _RotatingAlbumArtState();
 }
 
-class _RotatingAlbumArtState extends State<_RotatingAlbumArt>
+class _RotatingAlbumArtState extends ConsumerState<_RotatingAlbumArt>
     with SingleTickerProviderStateMixin {
   late final AnimationController _ctrl;
+
+  bool get _allowSpin {
+    if (!widget.isPlaying) return false;
+    if (MediaQuery.disableAnimationsOf(context)) return false;
+    return !ref.read(settingsProvider).reduceMotion;
+  }
 
   @override
   void initState() {
@@ -1301,18 +1287,26 @@ class _RotatingAlbumArtState extends State<_RotatingAlbumArt>
       vsync: this,
       duration: const Duration(seconds: 20),
     );
-    if (widget.isPlaying) _ctrl.repeat();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncSpin();
   }
 
   @override
   void didUpdateWidget(_RotatingAlbumArt old) {
     super.didUpdateWidget(old);
-    if (widget.isPlaying != old.isPlaying) {
-      if (widget.isPlaying) {
-        _ctrl.repeat();
-      } else {
-        _ctrl.stop();
-      }
+    _syncSpin();
+  }
+
+  void _syncSpin() {
+    final allow = _allowSpin;
+    if (allow && !_ctrl.isAnimating) {
+      _ctrl.repeat();
+    } else if (!allow && _ctrl.isAnimating) {
+      _ctrl.stop();
     }
   }
 
@@ -1324,369 +1318,9 @@ class _RotatingAlbumArtState extends State<_RotatingAlbumArt>
 
   @override
   Widget build(BuildContext context) {
+    ref.watch(settingsProvider.select((s) => s.reduceMotion));
+    _syncSpin();
     return RotationTransition(turns: _ctrl, child: widget.child);
   }
 }
 
-// ── Audio-reactive visualizer widget ─────────────────────────────────
-
-class _VisualizerWidget extends ConsumerStatefulWidget {
-  final Color color;
-
-  const _VisualizerWidget({required this.color});
-
-  @override
-  ConsumerState<_VisualizerWidget> createState() => _VisualizerWidgetState();
-}
-
-class _VisualizerWidgetState extends ConsumerState<_VisualizerWidget>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  late final AnimationController _animController;
-  final _barHeights = List<double>.filled(_kBarCount, 0.0);
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 4),
-    )..addListener(_onFrame);
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive) {
-      _animController.stop();
-    } else if (state == AppLifecycleState.resumed) {
-      if (ref.read(playbackProvider).isPlaying) {
-        _animController.repeat();
-      }
-    }
-  }
-
-  void _onFrame() {
-    if (!mounted) return;
-    _driveVisualizerHeights(
-      ref: ref,
-      currentHeights: _barHeights,
-      maxHeight: 20,
-    );
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _animController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final playing = ref.watch(playbackProvider.select((s) => s.isPlaying));
-    if (playing) {
-      if (!_animController.isAnimating) {
-        _animController.repeat();
-      }
-    } else if (_animController.isAnimating) {
-      _animController.stop();
-    }
-    return AnimatedBuilder(
-      animation: _animController,
-      builder: (context, _) {
-        return SizedBox.expand(
-          child: CustomPaint(
-            painter: _BarPainter(barHeights: _barHeights, color: widget.color),
-          ),
-        );
-      },
-    );
-  }
-}
-
-// ── Bar CustomPainter ─────────────────────────────────────────────────
-
-class _BarPainter extends CustomPainter {
-  final List<double> barHeights;
-  final Color color;
-
-  const _BarPainter({required this.barHeights, required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final n = barHeights.length;
-    if (n == 0) return;
-
-    final totalBarWidth = size.width * 0.6;
-    final barWidth = totalBarWidth / (n * 2 - 1);
-    final gap = barWidth;
-    final startX = (size.width - totalBarWidth) / 2;
-    final centerY = size.height / 2;
-
-    final paint = Paint()
-      ..color = color.withValues(alpha: 0.85)
-      ..style = PaintingStyle.fill;
-
-    for (int i = 0; i < n; i++) {
-      final h = barHeights[i].clamp(0.0, centerY);
-      if (h < 1.0) continue;
-
-      final x = startX + i * (barWidth + gap);
-      const radius = Radius.circular(4);
-
-      // Top bar (extends upward from center)
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(x, centerY - h, barWidth, h),
-          radius,
-        ),
-        paint,
-      );
-
-      // Bottom bar (mirror, extends downward from center)
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(Rect.fromLTWH(x, centerY, barWidth, h), radius),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_BarPainter old) => true;
-}
-
-// ── Dense Progress Bar Painter ────────────────────────────────────────
-
-class _DenseProgressBarPainter extends CustomPainter {
-  final double progress;
-  final Color activeColor;
-  final Color inactiveColor;
-
-  const _DenseProgressBarPainter({
-    required this.progress,
-    required this.activeColor,
-    required this.inactiveColor,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final barWidth = 2.0;
-    final gap = 2.0;
-    final totalBars = (size.width / (barWidth + gap)).floor();
-    final activeBars = (totalBars * progress).floor();
-
-    for (int i = 0; i < totalBars; i++) {
-      final x = i * (barWidth + gap);
-      // Optional: slight height variance based on i, but mockup shows flat
-      final h = size.height;
-      final paint = Paint()
-        ..color = i < activeBars ? activeColor : inactiveColor
-        ..style = PaintingStyle.fill;
-
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(
-          Rect.fromLTWH(x, 0, barWidth, h),
-          const Radius.circular(1),
-        ),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_DenseProgressBarPainter old) =>
-      old.progress != progress ||
-      old.activeColor != activeColor ||
-      old.inactiveColor != inactiveColor;
-}
-
-// ── Mini Row Visualizer for Top Header ────────────────────────────────
-class _VisualizerRowWidget extends ConsumerStatefulWidget {
-  const _VisualizerRowWidget();
-
-  @override
-  ConsumerState<_VisualizerRowWidget> createState() =>
-      _VisualizerRowWidgetState();
-}
-
-class _VisualizerRowWidgetState extends ConsumerState<_VisualizerRowWidget>
-    with SingleTickerProviderStateMixin, WidgetsBindingObserver {
-  late final AnimationController _animController;
-  final _barHeights = List<double>.filled(40, 0.0);
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addObserver(this);
-    _animController = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 4),
-    )..addListener(_onFrame);
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.paused ||
-        state == AppLifecycleState.inactive) {
-      _animController.stop();
-    } else if (state == AppLifecycleState.resumed) {
-      if (ref.read(playbackProvider).isPlaying) {
-        _animController.repeat();
-      }
-    }
-  }
-
-  void _onFrame() {
-    if (!mounted) return;
-    _driveVisualizerHeights(
-      ref: ref,
-      currentHeights: _barHeights,
-      maxHeight: 16,
-      floorHeight: 2,
-      mirrorFromCenter: true,
-    );
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    _animController.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final playing = ref.watch(playbackProvider.select((s) => s.isPlaying));
-    if (playing) {
-      if (!_animController.isAnimating) {
-        _animController.repeat();
-      }
-    } else if (_animController.isAnimating) {
-      _animController.stop();
-    }
-    return AnimatedBuilder(
-      animation: _animController,
-      builder: (context, _) {
-        return SizedBox.expand(
-          child: CustomPaint(
-            painter: _RowBarPainter(
-              barHeights: _barHeights,
-              color: Theme.of(
-                context,
-              ).colorScheme.primary, // Dynamic theme color
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _RowBarPainter extends CustomPainter {
-  final List<double> barHeights;
-  final Color color;
-
-  const _RowBarPainter({required this.barHeights, required this.color});
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final n = barHeights.length;
-    if (n == 0) return;
-
-    final barWidth = 3.0;
-    final gap = ((size.width - (n * barWidth)) / (n > 1 ? n - 1 : 1))
-        .clamp(0.0, double.infinity)
-        .toDouble();
-    final centerY = size.height / 2;
-
-    final paint = Paint()
-      ..color = color
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = barWidth;
-
-    for (int i = 0; i < n; i++) {
-      final h = barHeights[i].clamp(2.0, size.height).toDouble();
-      final x = i * (barWidth + gap) + (barWidth / 2);
-
-      canvas.drawLine(
-        Offset(x, centerY - (h / 2)),
-        Offset(x, centerY + (h / 2)),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(_RowBarPainter old) => true;
-}
-
-void _driveVisualizerHeights({
-  required WidgetRef ref,
-  required List<double> currentHeights,
-  required double maxHeight,
-  double floorHeight = 0,
-  bool mirrorFromCenter = false,
-}) {
-  final isPlaying = ref.read(playbackProvider).isPlaying;
-  if (!isPlaying) {
-    for (int i = 0; i < currentHeights.length; i++) {
-      currentHeights[i] = lerpDouble(currentHeights[i], floorHeight, 0.18)!;
-    }
-    return;
-  }
-
-  final audio = ref.read(audioRepositoryProvider);
-  if (!audio.isInitialized) {
-    for (int i = 0; i < currentHeights.length; i++) {
-      currentHeights[i] = lerpDouble(currentHeights[i], floorHeight, 0.18)!;
-    }
-    return;
-  }
-
-  final values = FFTProcessor.process(audio.getFFTData()).toList();
-  if (values.every((value) => value <= 0.001)) {
-    for (int i = 0; i < currentHeights.length; i++) {
-      currentHeights[i] = lerpDouble(currentHeights[i], floorHeight, 0.18)!;
-    }
-    return;
-  }
-
-  for (int i = 0; i < currentHeights.length; i++) {
-    final sample = _sampleBandValue(
-      values,
-      index: i,
-      total: currentHeights.length,
-      mirrorFromCenter: mirrorFromCenter,
-    );
-    final target = floorHeight + (sample * maxHeight);
-    currentHeights[i] = lerpDouble(currentHeights[i], target, 0.32)!;
-  }
-}
-
-double _sampleBandValue(
-  List<double> values, {
-  required int index,
-  required int total,
-  required bool mirrorFromCenter,
-}) {
-  if (values.isEmpty) return 0;
-  if (values.length == 1 || total <= 1) return values.first;
-
-  final t = mirrorFromCenter
-      ? _distanceFromCenter(index, total)
-      : index / (total - 1);
-  final rawIndex = t * (values.length - 1);
-  final lower = rawIndex.floor().clamp(0, values.length - 1);
-  final upper = rawIndex.ceil().clamp(0, values.length - 1);
-  final fraction = rawIndex - lower;
-
-  return (values[lower] * (1 - fraction)) + (values[upper] * fraction);
-}
-
-double _distanceFromCenter(int index, int total) {
-  if (total <= 1) return 0;
-  final center = (total - 1) / 2;
-  if (center == 0) return 0;
-  return ((index - center).abs() / center).clamp(0.0, 1.0);
-}

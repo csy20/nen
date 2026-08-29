@@ -16,6 +16,15 @@ class _FakeAudioRepository implements AudioRepository {
   bool get isVisualizerLive => false;
 
   @override
+  bool get isEqualizerLive => eqActive;
+
+  @override
+  bool get supportsCrossfade => false;
+
+  @override
+  Song? get preloadedSong => null;
+
+  @override
   Duration get currentDuration => Duration.zero;
 
   @override
@@ -23,6 +32,12 @@ class _FakeAudioRepository implements AudioRepository {
 
   @override
   Stream<Duration> get positionStream => const Stream.empty();
+
+  @override
+  Stream<bool> get playingStream => const Stream.empty();
+
+  @override
+  bool get isPlaying => false;
 
   @override
   Future<void> dispose() async {}
@@ -43,7 +58,7 @@ class _FakeAudioRepository implements AudioRepository {
   Future<void> play(Song song) async {}
 
   @override
-  Future<void> playPreloaded() async {}
+  Future<bool> playPreloaded() async => false;
 
   @override
   Future<void> preload(Song song) async {}
