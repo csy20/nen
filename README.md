@@ -2,7 +2,7 @@
 
 Offline music player for the files already on your phone. Local playback only — no streaming, no ads, no account.
 
-**Play:** [dev.csy20.nen](https://play.google.com/store/apps/details?id=dev.csy20.nen) (early access)
+**Play:** [dev.csy20.nen](https://play.google.com/store/apps/details?id=dev.csy20.nen)
 
 Current version: **1.0.13+15**
 
@@ -87,4 +87,4 @@ android/app/src/main/kotlin/dev/csy20/nen/
 
 ## License
 
-Private / unpublished (`publish_to: none`).
+[MIT](LICENSE)
