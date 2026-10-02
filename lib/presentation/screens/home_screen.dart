@@ -1,5 +1,3 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,6 +5,7 @@ import '../providers/providers.dart';
 import '../theme/nen_theme.dart';
 import '../theme/page_transitions.dart';
 import '../widgets/audio_visualizer_bars.dart';
+import '../widgets/nen_glass.dart';
 import 'library_screen.dart'; // for FavoritesTab, AlbumsTab, ArtistsTab, FoldersTab
 import 'now_playing_screen.dart';
 import 'playlists_screen.dart';
@@ -44,95 +43,79 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
     return Scaffold(
       backgroundColor: colors.background,
-      extendBody: true, // Allows body to scroll behind the floating nav bar
-      body: Stack(
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Persistent Top Header + Tab Content
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // 1. Persistent Top Bar
-              const SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: EdgeInsets.fromLTRB(24, 24, 24, 16),
-                  child: _HomeTopBar(),
-                ),
-              ),
-
-              // 2. Persistent Now Playing Header
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 8,
-                ),
-                child: Text(
-                  'NOW PLAYING',
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 1.5,
-                  ),
-                ),
-              ),
-
-              // 3. Persistent Now Playing Card
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 24),
-                child: _HomeNowPlayingCard(),
-              ),
-
-              const SizedBox(height: 16),
-
-              // 4. Tab Content area
-              Expanded(
-                child: PageView.builder(
-                  controller: _pageController,
-                  physics: const BouncingScrollPhysics(),
-                  itemCount: 6,
-                  onPageChanged: (index) {
-                    setState(() => _tabIndex = index);
-                  },
-                  itemBuilder: (context, index) {
-                    return switch (index) {
-                      0 => const HomeTab(),
-                      1 => const FavoritesTab(),
-                      2 => const AlbumsTab(),
-                      3 => const ArtistsTab(),
-                      4 => const PlaylistsScreen(),
-                      5 => const FoldersTab(),
-                      _ => const SizedBox.shrink(),
-                    };
-                  },
-                ),
-              ),
-            ],
+          // 1. Persistent Top Bar
+          const SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(24, 24, 24, 16),
+              child: _HomeTopBar(),
+            ),
           ),
 
-          // 5. The floating bottom navigation bar
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 24, // spacing from the bottom of the screen
-            child: SafeArea(
-              top: false,
-              child: Center(
-                child: _FloatingBottomNavBar(
-                  currentIndex: _tabIndex,
-                  onTap: (index) {
-                    setState(() => _tabIndex = index);
-                    _pageController.animateToPage(
-                      index,
-                      duration: const Duration(milliseconds: 400),
-                      curve: Curves.easeOutQuint,
-                    );
-                  },
-                ),
+          // 2. Persistent Now Playing Header
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+            child: Text(
+              'NOW PLAYING',
+              style: TextStyle(
+                color: colors.textSecondary,
+                fontSize: 12,
+                fontWeight: FontWeight.w700,
+                letterSpacing: 1.5,
               ),
             ),
           ),
+
+          // 3. Persistent Now Playing Card
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24),
+            child: _HomeNowPlayingCard(),
+          ),
+
+          const SizedBox(height: 16),
+
+          // 4. Tab Content area
+          Expanded(
+            child: PageView.builder(
+              controller: _pageController,
+              physics: const BouncingScrollPhysics(),
+              itemCount: 6,
+              onPageChanged: (index) {
+                setState(() => _tabIndex = index);
+              },
+              itemBuilder: (context, index) {
+                return switch (index) {
+                  0 => const HomeTab(),
+                  1 => const FavoritesTab(),
+                  2 => const AlbumsTab(),
+                  3 => const ArtistsTab(),
+                  4 => const PlaylistsScreen(),
+                  5 => const FoldersTab(),
+                  _ => const SizedBox.shrink(),
+                };
+              },
+            ),
+          ),
         ],
+      ),
+
+      bottomNavigationBar: SafeArea(
+        top: false,
+        minimum: const EdgeInsets.only(top: 8, bottom: 16),
+        child: _FloatingBottomNavBar(
+          currentIndex: _tabIndex,
+          onTap: (index) {
+            setState(() => _tabIndex = index);
+            _pageController.animateToPage(
+              index,
+              duration: const Duration(milliseconds: 400),
+              curve: Curves.easeOutQuint,
+            );
+          },
+        ),
       ),
     );
   }
@@ -152,18 +135,22 @@ class _HomeTopBar extends ConsumerWidget {
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         // Brand Logo
-        Text(
-          'nen',
-          style: TextStyle(
-            fontSize: 28,
-            fontWeight: FontWeight.w800,
-            color: colors.textPrimary,
-            shadows: [
-              Shadow(
-                color: NenTheme.defaultAccent.withValues(alpha: 0.5),
-                blurRadius: 12,
-              ),
-            ],
+        Flexible(
+          child: Text(
+            'nen',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 28,
+              fontWeight: FontWeight.w800,
+              color: colors.textPrimary,
+              shadows: [
+                Shadow(
+                  color: NenTheme.defaultAccent.withValues(alpha: 0.5),
+                  blurRadius: 12,
+                ),
+              ],
+            ),
           ),
         ),
         // Action Buttons
@@ -236,8 +223,7 @@ class _TopBarIconButton extends StatelessWidget {
         ),
         child: ClipRRect(
           borderRadius: BorderRadius.circular(22),
-          child: BackdropFilter(
-            filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          child: NenGlass(
             child: Icon(icon, size: 20, color: colors.textPrimary),
           ),
         ),
@@ -441,7 +427,9 @@ class _FloatingBottomNavBar extends StatelessWidget {
 
     return Container(
       height: 64,
-      margin: const EdgeInsets.symmetric(horizontal: 24),
+      margin: EdgeInsets.symmetric(
+        horizontal: MediaQuery.sizeOf(context).width < 360 ? 8 : 16,
+      ),
       decoration: BoxDecoration(
         color: isDark
             ? Colors.white.withValues(alpha: 0.08)
@@ -463,12 +451,12 @@ class _FloatingBottomNavBar extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(NenRadius.pill),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+        child: NenGlass(
+          blurSigma: 24,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: Row(
-              mainAxisSize: MainAxisSize.min,
+              mainAxisSize: MainAxisSize.max,
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 _NavItem(
@@ -501,7 +489,7 @@ class _FloatingBottomNavBar extends StatelessWidget {
                   isSelected: currentIndex == 5,
                   onTap: () => onTap(5),
                 ),
-              ],
+              ].map((item) => Expanded(child: item)).toList(),
             ),
           ),
         ),
@@ -531,7 +519,8 @@ class _NavItem extends StatelessWidget {
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+        constraints: const BoxConstraints(minHeight: 48),
+        padding: const EdgeInsets.symmetric(vertical: 12),
         // subtle background for the active item
         decoration: isSelected
             ? BoxDecoration(

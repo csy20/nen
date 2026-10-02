@@ -16,6 +16,8 @@ class AudioRepositoryImpl implements AudioRepository {
       StreamController<void>.broadcast();
   final StreamController<bool> _playingController =
       StreamController<bool>.broadcast();
+  final StreamController<AudioPlaybackException> _errorController =
+      StreamController<AudioPlaybackException>.broadcast();
   final List<double> _fftBuffer = List<double>.filled(256, 0.0);
   final List<double> _eqBands = List<double>.filled(8, 1.0);
 
@@ -23,6 +25,7 @@ class AudioRepositoryImpl implements AudioRepository {
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<ja.PlayerState>? _stateSub;
   StreamSubscription<Duration?>? _durationSub;
+  StreamSubscription<ja.PlayerException>? _errorSub;
 
   bool _initialized = false;
   bool _disposed = false;
@@ -34,6 +37,9 @@ class AudioRepositoryImpl implements AudioRepository {
   Duration _currentDuration = Duration.zero;
   double _volume = 1.0;
   double _speed = 1.0;
+  Song? _currentSong;
+  bool _sourceReady = false;
+  int? _failedGeneration;
 
   @override
   bool get isInitialized => _initialized;
@@ -45,6 +51,9 @@ class AudioRepositoryImpl implements AudioRepository {
   bool get isEqualizerLive => false;
 
   @override
+  bool get supportsEqualizer => false;
+
+  @override
   bool get supportsCrossfade => false;
 
   @override
@@ -54,6 +63,13 @@ class AudioRepositoryImpl implements AudioRepository {
   Duration get currentDuration => _currentDuration;
 
   @override
+  Duration get currentPosition =>
+      _sourceReady ? (_player?.position ?? _lastPosition) : _lastPosition;
+
+  @override
+  Stream<AudioPlaybackException> get errorStream => _errorController.stream;
+
+  @override
   Future<void> initialize() async {
     _initialized = true;
   }
@@ -61,20 +77,25 @@ class AudioRepositoryImpl implements AudioRepository {
   @override
   Future<void> dispose() async {
     _disposed = true;
+    _playGeneration++;
     _initialized = false;
     await _disposePlayer();
     await _positionController.close();
     await _completionController.close();
     await _playingController.close();
+    await _errorController.close();
   }
 
   @override
-  Future<void> play(Song song) async {
+  Future<void> play(
+    Song song, {
+    Duration initialPosition = Duration.zero,
+  }) async {
     final gen = ++_playGeneration;
     _wantPlaying = true;
     if (!_initialized) await initialize();
     _ensureCurrent(gen);
-    await _playSong(song, gen);
+    await _playSong(song, gen, initialPosition);
   }
 
   bool _stale(int gen) => _disposed || gen != _playGeneration;
@@ -83,7 +104,7 @@ class AudioRepositoryImpl implements AudioRepository {
     if (_stale(gen)) throw const PlaybackSupersededException();
   }
 
-  Future<void> _playSong(Song song, int gen) async {
+  Future<void> _playSong(Song song, int gen, Duration initialPosition) async {
     _ensurePlayer();
     final player = _player!;
     if (player.playing) {
@@ -95,14 +116,16 @@ class AudioRepositoryImpl implements AudioRepository {
     }
     _ensureCurrent(gen);
 
+    _currentSong = song;
+    _sourceReady = false;
     _completionFired = false;
-    _lastPosition = Duration.zero;
+    _lastPosition = initialPosition;
     _currentDuration = song.duration;
-    _positionController.add(Duration.zero);
+    _positionController.add(initialPosition);
 
     Duration? duration;
     try {
-      duration = await _setSource(player, song);
+      duration = await _setSource(player, song, initialPosition);
     } on ja.PlayerInterruptedException {
       throw const PlaybackSupersededException();
     } on PlaybackSupersededException {
@@ -132,18 +155,54 @@ class AudioRepositoryImpl implements AudioRepository {
       debugPrint('volume/speed error: $e');
     }
     _ensureCurrent(gen);
+    _sourceReady = true;
     if (!_wantPlaying) return;
-    await player.play();
+    _startPlayback(player, gen, song);
+  }
+
+  void _startPlayback(ja.AudioPlayer player, int gen, Song song) {
+    // just_audio's play future covers the entire playback lifetime.
+    unawaited(
+      player.play().catchError((Object error) {
+        _reportPlaybackError(error, gen, song);
+      }),
+    );
     _setPlaying(player.playing);
   }
 
-  Future<Duration?> _setSource(ja.AudioPlayer player, Song song) async {
+  void _reportPlaybackError(Object error, int gen, Song song) {
+    if (_stale(gen) || _failedGeneration == gen) return;
+    _failedGeneration = gen;
+    _wantPlaying = false;
+    _setPlaying(false);
+    final player = _player;
+    if (player != null) {
+      unawaited(
+        player.pause().catchError((Object error) {
+          debugPrint('pause after playback error: $error');
+        }),
+      );
+    }
+    _errorController.add(
+      AudioPlaybackException.unsupported(
+        title: song.title,
+        formatLabel: AudioFormat.displayName(song.fileExtension),
+      ),
+    );
+    debugPrint('playback failed: $error');
+  }
+
+  Future<Duration?> _setSource(
+    ja.AudioPlayer player,
+    Song song,
+    Duration initialPosition,
+  ) async {
     Object? uriError;
     if (song.uri.isNotEmpty) {
       try {
         return await player.setAudioSource(
           ja.AudioSource.uri(Uri.parse(song.uri), tag: song.id),
-          preload: false,
+          initialPosition: initialPosition,
         );
       } on ja.PlayerInterruptedException {
         rethrow;
@@ -155,7 +214,7 @@ class AudioRepositoryImpl implements AudioRepository {
     if (song.filePath.isNotEmpty) {
       return player.setAudioSource(
         ja.AudioSource.file(song.filePath, tag: song.id),
-        preload: false,
+        initialPosition: initialPosition,
       );
     }
     if (uriError != null) throw uriError;
@@ -174,7 +233,9 @@ class AudioRepositoryImpl implements AudioRepository {
     );
     _player = player;
     _positionSub = player.positionStream.listen((pos) {
-      if (_disposed) return;
+      // During a source load, just_audio can still publish the previous
+      // position (or zero). Keep the requested seek until the source is ready.
+      if (_disposed || !_sourceReady) return;
       if (pos != _lastPosition) {
         _lastPosition = pos;
         _positionController.add(pos);
@@ -191,11 +252,18 @@ class AudioRepositoryImpl implements AudioRepository {
       }
     });
     _durationSub = player.durationStream.listen((duration) {
+      if (_disposed) return;
       if (duration == null || duration <= Duration.zero) return;
       final next = AudioFormat.coalesceDuration(duration, _currentDuration);
       if (next == _currentDuration) return;
       _currentDuration = next;
       _positionController.add(_lastPosition);
+    });
+    _errorSub = player.errorStream.listen((error) {
+      final song = _currentSong;
+      if (_sourceReady && song != null) {
+        _reportPlaybackError(error, _playGeneration, song);
+      }
     });
   }
 
@@ -226,20 +294,15 @@ class AudioRepositoryImpl implements AudioRepository {
       _setPlaying(false);
       return;
     }
-    try {
-      await player.play();
-      if (!player.playing) {
-        await player.play();
-      }
-    } catch (e) {
-      debugPrint('resume error: $e');
+    final song = _currentSong;
+    if (song != null && _sourceReady) {
+      _startPlayback(player, _playGeneration, song);
     }
-    _setPlaying(player.playing);
   }
 
   @override
   Future<void> stop() async {
-    _playGeneration++;
+    final gen = ++_playGeneration;
     _wantPlaying = false;
     _lastPosition = Duration.zero;
     _completionFired = true;
@@ -251,7 +314,8 @@ class AudioRepositoryImpl implements AudioRepository {
     } catch (e) {
       debugPrint('pause-on-stop error: $e');
     }
-    unawaited(player.seek(Duration.zero));
+    if (_stale(gen)) return;
+    await player.seek(Duration.zero);
   }
 
   @override
@@ -339,9 +403,11 @@ class AudioRepositoryImpl implements AudioRepository {
     await _positionSub?.cancel();
     await _stateSub?.cancel();
     await _durationSub?.cancel();
+    await _errorSub?.cancel();
     _positionSub = null;
     _stateSub = null;
     _durationSub = null;
+    _errorSub = null;
     try {
       await _player?.dispose();
     } catch (e) {

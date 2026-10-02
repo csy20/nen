@@ -1,8 +1,7 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 
 import '../theme/nen_theme.dart';
+import 'nen_glass.dart';
 
 class GlassmorphicCard extends StatefulWidget {
   final Widget child;
@@ -60,11 +59,8 @@ class _GlassmorphicCardState extends State<GlassmorphicCard> {
             curve: Curves.easeOut,
             child: ClipRRect(
               borderRadius: BorderRadius.circular(widget.borderRadius),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(
-                  sigmaX: widget.blurSigma,
-                  sigmaY: widget.blurSigma,
-                ),
+              child: NenGlass(
+                blurSigma: widget.blurSigma,
                 child: AnimatedContainer(
                   duration: reduceMotion
                       ? Duration.zero

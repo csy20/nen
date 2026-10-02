@@ -1,3 +1,4 @@
+import 'package:nen/domain/audio/audio_playback_exception.dart';
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -11,6 +12,14 @@ import 'package:nen/presentation/providers/di_providers.dart';
 import 'package:nen/presentation/providers/playback_provider.dart';
 
 class _FakeAudioRepository implements AudioRepository {
+  Duration _position = Duration.zero;
+  @override
+  Duration get currentPosition => _position;
+  @override
+  Stream<AudioPlaybackException> get errorStream => const Stream.empty();
+  @override
+  bool get supportsEqualizer => false;
+
   final StreamController<Duration> _positionController =
       StreamController<Duration>.broadcast();
   final StreamController<void> _completionController =
@@ -82,7 +91,11 @@ class _FakeAudioRepository implements AudioRepository {
   }
 
   @override
-  Future<void> play(Song song) async {
+  Future<void> play(
+    Song song, {
+    Duration initialPosition = Duration.zero,
+  }) async {
+    _position = initialPosition;
     playedSongs.add(song);
     _playing = true;
   }
@@ -108,6 +121,7 @@ class _FakeAudioRepository implements AudioRepository {
 
   @override
   Future<void> seek(Duration position) async {
+    _position = position;
     _positionController.add(position);
   }
 
@@ -141,7 +155,10 @@ class _FakeAudioRepository implements AudioRepository {
   }
 
   @override
-  Future<void> stop() async {}
+  Future<void> stop() async {
+    _playing = false;
+    _position = Duration.zero;
+  }
 
   void emitCompletion() {
     _completionController.add(null);
@@ -483,6 +500,7 @@ void main() {
       final notifier = container.read(playbackProvider.notifier);
 
       await notifier.playQueue(const [_songA, _songB], startIndex: 1);
+      await Future<void>.delayed(Duration.zero);
       notifier.toggleShuffle();
       await notifier.next();
       await Future<void>.delayed(Duration.zero);
@@ -548,45 +566,48 @@ void main() {
       expect(audioRepository.playedSongs, isEmpty);
     });
 
-    test('restores now playing from disk and play reloads the engine', () async {
-      final audioRepository = _FakeAudioRepository();
-      final audioHandler = NenAudioHandler(audioRepository);
-      await audioHandler.init();
-      addTearDown(audioHandler.teardown);
+    test(
+      'restores now playing from disk and play reloads the engine',
+      () async {
+        final audioRepository = _FakeAudioRepository();
+        final audioHandler = NenAudioHandler(audioRepository);
+        await audioHandler.init();
+        addTearDown(audioHandler.teardown);
 
-      final settings = _FakeSettingsRepository()
-        ..lastSession = const LastPlaybackSession(
-          queueIds: [1],
-          queueIndex: 0,
-          positionMs: 5000,
-          wasPlaying: false,
+        final settings = _FakeSettingsRepository()
+          ..lastSession = const LastPlaybackSession(
+            queueIds: [1],
+            queueIndex: 0,
+            positionMs: 5000,
+            wasPlaying: false,
+          );
+
+        final container = ProviderContainer(
+          overrides: [
+            audioHandlerProvider.overrideWithValue(audioHandler),
+            settingsRepositoryProvider.overrideWithValue(settings),
+            musicRepositoryProvider.overrideWithValue(
+              _FakeMusicRepository(const [_songA, _songB]),
+            ),
+          ],
         );
+        addTearDown(container.dispose);
 
-      final container = ProviderContainer(
-        overrides: [
-          audioHandlerProvider.overrideWithValue(audioHandler),
-          settingsRepositoryProvider.overrideWithValue(settings),
-          musicRepositoryProvider.overrideWithValue(
-            _FakeMusicRepository(const [_songA, _songB]),
-          ),
-        ],
-      );
-      addTearDown(container.dispose);
+        container.read(playbackProvider);
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
 
-      container.read(playbackProvider);
-      await Future<void>.delayed(Duration.zero);
-      await Future<void>.delayed(Duration.zero);
+        final restored = container.read(playbackProvider);
+        expect(restored.currentSong, _songA);
+        expect(restored.position, const Duration(seconds: 5));
+        expect(restored.isPlaying, isFalse);
+        expect(audioRepository.playedSongs, isEmpty);
 
-      final restored = container.read(playbackProvider);
-      expect(restored.currentSong, _songA);
-      expect(restored.position, const Duration(seconds: 5));
-      expect(restored.isPlaying, isFalse);
-      expect(audioRepository.playedSongs, isEmpty);
-
-      await container.read(playbackProvider.notifier).resume();
-      expect(audioRepository.playedSongs, [_songA]);
-      expect(container.read(playbackProvider).isPlaying, isTrue);
-    });
+        await container.read(playbackProvider.notifier).resume();
+        expect(audioRepository.playedSongs, [_songA]);
+        expect(container.read(playbackProvider).isPlaying, isTrue);
+      },
+    );
   });
 
   group('PlaybackFeedbackNotifier', () {

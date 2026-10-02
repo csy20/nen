@@ -121,7 +121,7 @@ class HomeTab extends ConsumerWidget {
                       ),
                     ],
                     SliverPadding(
-                      padding: const EdgeInsets.only(bottom: 120),
+                      padding: const EdgeInsets.only(bottom: 24),
                       sliver: SliverList(
                         delegate: SliverChildBuilderDelegate(
                           (context, index) {

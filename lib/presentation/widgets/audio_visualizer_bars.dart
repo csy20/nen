@@ -91,8 +91,10 @@ class _AudioVisualizerBarsState extends ConsumerState<AudioVisualizerBars>
     if (_ticker.isActive) {
       _ticker.stop();
     }
-    for (var i = 0; i < _barHeights.length; i++) {
-      _barHeights[i] = widget.floorHeight;
+    if (_barHeights.any((height) => height != widget.floorHeight)) {
+      setState(() {
+        _barHeights = List<double>.filled(widget.barCount, widget.floorHeight);
+      });
     }
   }
 
@@ -110,9 +112,7 @@ class _AudioVisualizerBarsState extends ConsumerState<AudioVisualizerBars>
       settingsProvider.select((s) => s.reduceMotion),
     );
     final shouldRun =
-        playing &&
-        !reduceMotion &&
-        !MediaQuery.disableAnimationsOf(context);
+        playing && !reduceMotion && !MediaQuery.disableAnimationsOf(context);
     if (shouldRun != _ticker.isActive) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) _syncTicker(shouldRun);
@@ -121,7 +121,7 @@ class _AudioVisualizerBarsState extends ConsumerState<AudioVisualizerBars>
     return RepaintBoundary(
       child: CustomPaint(
         painter: _RowBarPainter(
-          barHeights: _barHeights,
+          barHeights: List<double>.unmodifiable(_barHeights),
           color: Theme.of(context).colorScheme.primary,
           strokeWidth: widget.strokeWidth,
         ),

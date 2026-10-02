@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/entities.dart';
 import '../providers/library_providers.dart';
+import '../providers/di_providers.dart';
 import '../providers/playback_provider.dart';
 import '../providers/settings_provider.dart';
 import '../theme/nen_theme.dart';
@@ -17,9 +18,6 @@ import 'equalizer_screen.dart';
 
 /// Hero tag shared with any source widget (e.g. mini player bar).
 const String _kHeroTag = 'now_playing_art';
-
-/// Lyrics panel visibility toggle (session-scoped).
-final lyricsVisibleProvider = StateProvider<bool>((ref) => false);
 
 /// Full-screen now-playing screen.
 class NowPlayingScreen extends ConsumerWidget {
@@ -53,33 +51,48 @@ class NowPlayingScreen extends ConsumerWidget {
                     0.0,
                     280.0,
                   );
-                  return Column(
-                    children: [
-                      _buildTopBar(context, ref, sleepTimer),
-                      // Add visualizer exactly as in the mockup
-                      const SizedBox(
-                        height: 50,
-                        child: Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 24),
-                          child: AudioVisualizerBars(),
-                        ),
+                  return SingleChildScrollView(
+                    child: ConstrainedBox(
+                      constraints: BoxConstraints(
+                        minHeight: constraints.maxHeight,
                       ),
-                      const Spacer(),
-                      _buildAlbumArtSection(
-                        context,
-                        ref,
-                        song,
-                        artSize,
-                        playback.isPlaying,
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          _buildTopBar(context, ref, sleepTimer),
+                          // Add visualizer exactly as in the mockup
+                          const SizedBox(
+                            height: 50,
+                            child: Padding(
+                              padding: EdgeInsets.symmetric(horizontal: 24),
+                              child: AudioVisualizerBars(),
+                            ),
+                          ),
+                          const SizedBox(height: 16),
+                          _buildAlbumArtSection(
+                            context,
+                            ref,
+                            song,
+                            artSize,
+                            playback.isPlaying,
+                          ),
+                          const SizedBox(height: 32),
+                          _buildSongInfo(context, song),
+                          const SizedBox(height: 16),
+                          _buildControlPanel(context, ref, playback),
+                          _buildVolumeBar(context, ref, playback),
+                          _buildSpeedControl(context, ref, playback),
+                          const SizedBox(height: 16),
+                          _buildBottomActionStrip(
+                            context,
+                            ref,
+                            song,
+                            favorites,
+                          ),
+                          const SizedBox(height: 16),
+                        ],
                       ),
-                      const SizedBox(height: 32),
-                      _buildSongInfo(context, song),
-                      const Spacer(),
-                      _buildControlPanel(context, ref, playback),
-                      const SizedBox(height: 16),
-                      _buildBottomActionStrip(context, ref, song, favorites),
-                      const SizedBox(height: 16),
-                    ],
+                    ),
                   );
                 },
               ),
@@ -137,7 +150,11 @@ class NowPlayingScreen extends ConsumerWidget {
             color: colors.surfaceElevated,
             itemBuilder: (_) => [
               const PopupMenuItem(value: 'queue', child: Text('View Queue')),
-              const PopupMenuItem(value: 'equalizer', child: Text('Equalizer')),
+              if (ref.watch(audioRepositoryProvider).supportsEqualizer)
+                const PopupMenuItem(
+                  value: 'equalizer',
+                  child: Text('Equalizer'),
+                ),
               PopupMenuItem(
                 value: 'sleep',
                 child: Text(
@@ -503,6 +520,10 @@ class NowPlayingScreen extends ConsumerWidget {
           Icon(Icons.volume_down_rounded, color: colors.textTertiary, size: 18),
           Expanded(
             child: Slider(
+              key: const Key('playback_volume'),
+              label: '${(playback.volume * 100).round()}%',
+              semanticFormatterCallback: (value) =>
+                  'Volume ${(value * 100).round()} percent',
               value: playback.volume,
               onChanged: (value) =>
                   ref.read(playbackProvider.notifier).setVolume(value),
@@ -527,6 +548,10 @@ class NowPlayingScreen extends ConsumerWidget {
           Icon(Icons.speed_rounded, color: colors.textTertiary, size: 18),
           Expanded(
             child: Slider(
+              key: const Key('playback_speed'),
+              label: _formatSpeed(playback.speed),
+              semanticFormatterCallback: (value) =>
+                  'Playback speed ${_formatSpeed(value)}',
               value: playback.speed,
               min: 0.5,
               max: 2.0,
@@ -558,7 +583,6 @@ class NowPlayingScreen extends ConsumerWidget {
   ) {
     final colors = NenTheme.of(context);
     final isFavorite = song != null && favorites.contains(song.id);
-    final isLyrics = ref.watch(lyricsVisibleProvider);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -593,7 +617,7 @@ class NowPlayingScreen extends ConsumerWidget {
                       ? Icons.favorite_rounded
                       : Icons.favorite_border_rounded,
                   key: ValueKey(isFavorite),
-                  color: isFavorite ? Colors.redAccent : Colors.white,
+                  color: isFavorite ? Colors.redAccent : colors.textPrimary,
                   size: 24,
                 ),
               ),
@@ -608,36 +632,6 @@ class NowPlayingScreen extends ConsumerWidget {
                 Icons.playlist_add_rounded,
                 color: colors.textPrimary,
                 size: 26,
-              ),
-            ),
-            // Share
-            IconButton(
-              tooltip: 'Share',
-              onPressed: song == null
-                  ? null
-                  : () => ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('Sharing "${song.title}"'),
-                        behavior: SnackBarBehavior.floating,
-                      ),
-                    ),
-              icon: Icon(
-                Icons.share_rounded,
-                color: colors.textPrimary,
-                size: 22,
-              ),
-            ),
-            // Lyrics toggle
-            IconButton(
-              tooltip: isLyrics ? 'Hide lyrics' : 'Show lyrics',
-              onPressed: () =>
-                  ref.read(lyricsVisibleProvider.notifier).state = !isLyrics,
-              icon: Icon(
-                Icons.lyrics_rounded,
-                color: isLyrics
-                    ? Theme.of(context).colorScheme.primary
-                    : colors.textPrimary,
-                size: 22,
               ),
             ),
           ],
@@ -1035,47 +1029,6 @@ class _AnimatedAccentBuilder extends ConsumerWidget {
   }
 }
 
-// ── Active icon button (filled background when active) ────────────────
-
-class _ActiveIconButton extends StatelessWidget {
-  final IconData icon;
-  final bool isActive;
-  final Color activeColor;
-  final Color inactiveColor;
-  final String tooltip;
-  final VoidCallback onPressed;
-  const _ActiveIconButton({
-    required this.icon,
-    required this.isActive,
-    required this.activeColor,
-    required this.inactiveColor,
-    required this.tooltip,
-    required this.onPressed,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 200),
-      decoration: BoxDecoration(
-        color: isActive
-            ? activeColor.withValues(alpha: 0.15)
-            : Colors.transparent,
-        shape: BoxShape.circle,
-      ),
-      child: IconButton(
-        icon: Icon(
-          icon,
-          color: isActive ? activeColor : inactiveColor,
-          size: 22,
-        ),
-        onPressed: onPressed,
-        tooltip: tooltip,
-      ),
-    );
-  }
-}
-
 // ── Pulsing play/pause button ─────────────────────────────────────────
 
 class _PulsingPlayButton extends StatefulWidget {
@@ -1323,4 +1276,3 @@ class _RotatingAlbumArtState extends ConsumerState<_RotatingAlbumArt>
     return RotationTransition(turns: _ctrl, child: widget.child);
   }
 }
-

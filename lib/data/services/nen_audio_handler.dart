@@ -19,18 +19,23 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
   StreamSubscription<Duration>? _positionSub;
   StreamSubscription<void>? _completionSub;
   StreamSubscription<bool>? _playingSub;
+  StreamSubscription<AudioPlaybackException>? _errorSub;
   StreamSubscription<AudioInterruptionEvent>? _interruptionSub;
   StreamSubscription<void>? _noisySub;
   DateTime _lastPositionBroadcast = DateTime.fromMillisecondsSinceEpoch(0);
 
   bool _playing = false;
   bool _pausedByInterrupt = false;
+  int _playGeneration = 0;
+  int _artworkGeneration = 0;
+  Duration? _pendingInitialPosition;
   final List<void> _pendingCompletions = [];
   static const int _maxPendingCompletions = 16;
 
   Future<void> Function()? onCompletion;
   Future<void> Function()? onSkipToNext;
   Future<void> Function()? onSkipToPrevious;
+  Future<void> Function(int)? onSkipToQueueItem;
 
   NenAudioHandler(this._audioRepo, {MusicRepository? musicRepo})
     : _musicRepo = musicRepo;
@@ -53,6 +58,10 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
       _playing = playing;
       _broadcastState();
     });
+    _errorSub = _audioRepo.errorStream.listen((_) {
+      _playing = false;
+      _broadcastState(position: _audioRepo.currentPosition);
+    });
 
     await _audioRepo.initialize();
     await _configureAudioSession();
@@ -72,23 +81,34 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
     Song song, {
     List<Song>? queue,
     int queueIndex = 0,
+    Duration initialPosition = Duration.zero,
   }) async {
+    final generation = ++_playGeneration;
+    final artworkGeneration = ++_artworkGeneration;
+    _pendingInitialPosition = initialPosition;
     _playing = true;
     // Metadata must hit MediaSession before playing=true starts the FGS.
     // Samsung One UI shows "nen is running" + an empty bar when title
     // or duration is missing at that moment.
     final item = _mediaItemFor(song);
     mediaItem.add(item);
-    this.queue.add([item]);
+    syncQueue(queue ?? [song], queueIndex: queueIndex);
     await Future<void>.delayed(Duration.zero);
-    _broadcastState(position: Duration.zero, queueIndex: queueIndex);
-    unawaited(_attachArtwork(song));
+    if (generation != _playGeneration) {
+      throw const PlaybackSupersededException();
+    }
+    _broadcastState(position: initialPosition);
+    unawaited(_attachArtwork(song, artworkGeneration));
     try {
-      await _audioRepo.play(song);
+      await _audioRepo.play(song, initialPosition: initialPosition);
     } on PlaybackSupersededException {
-      return;
+      rethrow;
     } catch (e, st) {
+      if (generation != _playGeneration) {
+        throw const PlaybackSupersededException();
+      }
       debugPrint('playSong failed: $e\n$st');
+      _pendingInitialPosition = null;
       _playing = false;
       _broadcastState();
       if (e is AudioPlaybackException) rethrow;
@@ -102,6 +122,10 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
         ),
       );
     }
+    if (generation != _playGeneration) {
+      throw const PlaybackSupersededException();
+    }
+    _pendingInitialPosition = null;
     final duration = AudioFormat.coalesceDuration(
       _audioRepo.currentDuration,
       song.duration,
@@ -110,10 +134,42 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
     if (current != null &&
         duration > Duration.zero &&
         current.duration != duration) {
-      mediaItem.add(current.copyWith(duration: duration));
+      _publishCurrentItem(current.copyWith(duration: duration));
     }
     _playing = _audioRepo.isPlaying;
-    _broadcastState(position: Duration.zero, queueIndex: queueIndex);
+    _broadcastState();
+  }
+
+  void _publishCurrentItem(as_lib.MediaItem item) {
+    mediaItem.add(item);
+    final index = playbackState.value.queueIndex;
+    if (index != null && index >= 0 && index < queue.value.length) {
+      final items = [...queue.value];
+      items[index] = item;
+      queue.add(items);
+    }
+  }
+
+  /// Publish the same queue and selected occurrence as the foreground player.
+  void syncQueue(
+    List<Song> songs, {
+    required int queueIndex,
+    Duration? position,
+  }) {
+    final items = songs.map((song) => _mediaItemFor(song)).toList();
+    final index = items.isEmpty ? null : queueIndex.clamp(0, items.length - 1);
+    if (index != null &&
+        mediaItem.value?.extras?['songId'] == songs[index].id) {
+      items[index] = mediaItem.value!;
+    }
+    queue.add(items);
+    mediaItem.add(index == null ? null : items[index]);
+    playbackState.add(
+      playbackState.value.copyWith(
+        queueIndex: index,
+        updatePosition: position ?? playbackState.value.updatePosition,
+      ),
+    );
   }
 
   Duration get currentDuration => _audioRepo.currentDuration;
@@ -137,20 +193,28 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
 
   @override
   Future<void> pause() async {
+    _playGeneration++;
+    final position = _pendingInitialPosition;
+    _pendingInitialPosition = null;
     await _audioRepo.pause();
     _playing = _audioRepo.isPlaying;
-    _broadcastState();
+    _broadcastState(position: position ?? _audioRepo.currentPosition);
   }
 
   @override
   Future<void> stop() async {
+    final generation = ++_playGeneration;
+    _artworkGeneration++;
+    _pendingInitialPosition = null;
     await _audioRepo.stop();
+    if (generation != _playGeneration) return;
     _playing = false;
     _broadcastState(position: Duration.zero);
   }
 
   @override
   Future<void> seek(Duration position) async {
+    if (_pendingInitialPosition != null) _pendingInitialPosition = position;
     await _audioRepo.seek(position);
     final dur = mediaItem.value?.duration ?? _audioRepo.currentDuration;
     playbackState.add(
@@ -182,6 +246,12 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
       return;
     }
     await seek(Duration.zero);
+  }
+
+  @override
+  Future<void> skipToQueueItem(int index) async {
+    if (index < 0 || index >= queue.value.length) return;
+    await onSkipToQueueItem?.call(index);
   }
 
   Future<void> setVolume(double volume) => _audioRepo.setVolume(volume);
@@ -222,14 +292,7 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
   /// metadata. On a 1–2 hour lecture MP3 that extract can hang, so Samsung
   /// keeps the FGS fallback "nen is running" with an empty seek bar.
   as_lib.MediaItem _mediaItemFor(Song song, {Uri? artUri, Duration? duration}) {
-    final resolvedDuration =
-        duration ??
-        (song.duration > Duration.zero
-            ? song.duration
-            : AudioFormat.coalesceDuration(
-                _audioRepo.currentDuration,
-                song.duration,
-              ));
+    final resolvedDuration = duration ?? song.duration;
     final id = song.uri.isNotEmpty
         ? song.uri
         : (song.filePath.isNotEmpty ? song.filePath : 'nen-${song.id}');
@@ -253,21 +316,25 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
     );
   }
 
-  Future<void> _attachArtwork(Song song) async {
+  Future<void> _attachArtwork(Song song, int generation) async {
     final repo = _musicRepo;
     if (repo == null) return;
     try {
       final bytes = await repo.getAlbumArt(song.id, size: 300);
       if (bytes == null || bytes.isEmpty) return;
-      if (mediaItem.value?.extras?['songId'] != song.id) return;
+      if (!_isCurrentArtwork(song, generation)) return;
       final uri = await _writeArtFile(song.id, bytes);
       if (uri == null) return;
-      if (mediaItem.value?.extras?['songId'] != song.id) return;
-      mediaItem.add(_mediaItemFor(song, artUri: uri));
+      if (!_isCurrentArtwork(song, generation)) return;
+      _publishCurrentItem(mediaItem.value!.copyWith(artUri: uri));
     } catch (e) {
       debugPrint('notification art error: $e');
     }
   }
+
+  bool _isCurrentArtwork(Song song, int generation) =>
+      generation == _artworkGeneration &&
+      mediaItem.value?.extras?['songId'] == song.id;
 
   Future<Uri?> _writeArtFile(int songId, Uint8List bytes) async {
     try {
@@ -349,9 +416,13 @@ class NenAudioHandler extends as_lib.BaseAudioHandler with as_lib.SeekHandler {
   }
 
   Future<void> teardown() async {
+    _playGeneration++;
+    _artworkGeneration++;
+    _pendingInitialPosition = null;
     await _positionSub?.cancel();
     await _completionSub?.cancel();
     await _playingSub?.cancel();
+    await _errorSub?.cancel();
     await _interruptionSub?.cancel();
     await _noisySub?.cancel();
     await _audioRepo.dispose();
@@ -364,8 +435,7 @@ Future<NenAudioHandler> initAudioHandler(
   NenAudioHandler? existing,
 }) async {
   final handler = await as_lib.AudioService.init(
-    builder: () =>
-        existing ?? NenAudioHandler(audioRepo, musicRepo: musicRepo),
+    builder: () => existing ?? NenAudioHandler(audioRepo, musicRepo: musicRepo),
     config: const as_lib.AudioServiceConfig(
       androidNotificationChannelId: 'dev.csy20.nen.audio',
       androidNotificationChannelName: 'Now playing',

@@ -204,8 +204,14 @@ class _NenAppState extends ConsumerState<NenApp> {
       title: 'nen',
       debugShowCheckedModeBanner: false,
       scaffoldMessengerKey: rootScaffoldMessengerKey,
-      theme: NenTheme.buildLight(accentColor: settings.customAccentColor),
-      darkTheme: NenTheme.buildDark(accentColor: settings.customAccentColor),
+      theme: NenTheme.buildLight(
+        accentColor: settings.customAccentColor,
+        highContrast: settings.highContrast,
+      ),
+      darkTheme: NenTheme.buildDark(
+        accentColor: settings.customAccentColor,
+        highContrast: settings.highContrast,
+      ),
       themeMode: settings.flutterThemeMode,
       home: const StartupGate(),
     );

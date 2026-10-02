@@ -7,6 +7,7 @@ import '../../data/repositories/settings_repository_impl.dart';
 import '../../data/services/app_review_service.dart';
 import '../../data/services/nen_audio_handler.dart';
 import '../../data/services/permission_service.dart';
+import '../../data/services/playlist_documents.dart';
 import '../../domain/repositories/repositories.dart';
 import '../../domain/usecases/usecases.dart';
 
@@ -18,6 +19,10 @@ final permissionServiceProvider = Provider<PermissionService>(
 
 final appReviewServiceProvider = Provider<AppReviewService>(
   (_) => AppReviewService(),
+);
+
+final playlistDocumentsProvider = Provider<PlaylistDocuments>(
+  (_) => PlaylistDocuments(),
 );
 
 // ── Audio Handler (background service) ──────────────────────────────
