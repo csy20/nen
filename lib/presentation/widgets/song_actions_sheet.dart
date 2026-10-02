@@ -22,6 +22,8 @@ Future<void> showSongActionsSheet(
   await showModalBottomSheet<void>(
     context: context,
     backgroundColor: colors.surfaceElevated,
+    isScrollControlled: true,
+    useSafeArea: true,
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
@@ -32,134 +34,140 @@ Future<void> showSongActionsSheet(
           final sheetColors = NenTheme.of(sheetContext);
 
           return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: sheetColors.textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    song.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: sheetColors.textTertiary,
-                      fontSize: 12,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  ListTile(
-                    contentPadding: EdgeInsets.zero,
-                    leading: Icon(
-                      Icons.queue_music_rounded,
-                      color: Theme.of(sheetContext).colorScheme.primary,
-                    ),
-                    title: Text(
-                      'Add to queue',
-                      style: TextStyle(color: sheetColors.textPrimary),
-                    ),
-                    onTap: () {
-                      ref.read(playbackProvider.notifier).addToQueue(song);
-                      Navigator.pop(sheetContext);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Queued ${song.title}')),
-                      );
-                    },
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Add to playlist',
-                    style: TextStyle(
-                      color: sheetColors.textSecondary,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  if (playlists.isEmpty)
-                    ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: Icon(
-                        Icons.playlist_add_rounded,
-                        color: Theme.of(sheetContext).colorScheme.primary,
+            child: ConstrainedBox(
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.sizeOf(sheetContext).height * 0.85,
+              ),
+              child: SingleChildScrollView(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: sheetColors.textPrimary,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
-                      title: Text(
-                        'Create playlist',
-                        style: TextStyle(color: sheetColors.textPrimary),
+                      const SizedBox(height: 4),
+                      Text(
+                        song.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: sheetColors.textTertiary,
+                          fontSize: 12,
+                        ),
                       ),
-                      onTap: () async {
-                        Navigator.pop(sheetContext);
-                        final playlistName = await _showCreatePlaylistDialog(
-                          context,
-                        );
-                        if (playlistName == null || playlistName.isEmpty) {
-                          return;
-                        }
-
-                        final playlist = await ref
-                            .read(playlistsProvider.notifier)
-                            .create(playlistName);
-                        await ref
-                            .read(playlistsProvider.notifier)
-                            .addSong(playlist.id, song);
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(
-                                'Added ${song.title} to ${playlist.name}',
-                              ),
-                            ),
-                          );
-                        }
-                      },
-                    )
-                  else
-                    ...playlists.map((playlist) {
-                      return ListTile(
+                      const SizedBox(height: 16),
+                      ListTile(
                         contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.playlist_play_rounded),
+                        leading: Icon(
+                          Icons.queue_music_rounded,
+                          color: Theme.of(sheetContext).colorScheme.primary,
+                        ),
                         title: Text(
-                          playlist.name,
+                          'Add to queue',
                           style: TextStyle(color: sheetColors.textPrimary),
                         ),
-                        subtitle: Text(
-                          '${playlist.songs.length} songs',
-                          style: TextStyle(
-                            color: sheetColors.textTertiary,
-                            fontSize: 11,
-                          ),
-                        ),
-                        onTap: () async {
-                          await ref
-                              .read(playlistsProvider.notifier)
-                              .addSong(playlist.id, song);
-                          if (sheetContext.mounted) {
-                            Navigator.pop(sheetContext);
-                          }
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(
-                                  'Added ${song.title} to ${playlist.name}',
-                                ),
-                              ),
-                            );
-                          }
+                        onTap: () {
+                          ref.read(playbackProvider.notifier).addToQueue(song);
+                          Navigator.pop(sheetContext);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Queued ${song.title}')),
+                          );
                         },
-                      );
-                    }),
-                ],
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Add to playlist',
+                        style: TextStyle(
+                          color: sheetColors.textSecondary,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      if (playlists.isEmpty)
+                        ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(
+                            Icons.playlist_add_rounded,
+                            color: Theme.of(sheetContext).colorScheme.primary,
+                          ),
+                          title: Text(
+                            'Create playlist',
+                            style: TextStyle(color: sheetColors.textPrimary),
+                          ),
+                          onTap: () async {
+                            Navigator.pop(sheetContext);
+                            final playlistName =
+                                await _showCreatePlaylistDialog(context);
+                            if (playlistName == null || playlistName.isEmpty) {
+                              return;
+                            }
+
+                            final playlist = await ref
+                                .read(playlistsProvider.notifier)
+                                .create(playlistName);
+                            await ref
+                                .read(playlistsProvider.notifier)
+                                .addSong(playlist.id, song);
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Added ${song.title} to ${playlist.name}',
+                                  ),
+                                ),
+                              );
+                            }
+                          },
+                        )
+                      else
+                        ...playlists.map((playlist) {
+                          return ListTile(
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.playlist_play_rounded),
+                            title: Text(
+                              playlist.name,
+                              style: TextStyle(color: sheetColors.textPrimary),
+                            ),
+                            subtitle: Text(
+                              '${playlist.songs.length} songs',
+                              style: TextStyle(
+                                color: sheetColors.textTertiary,
+                                fontSize: 11,
+                              ),
+                            ),
+                            onTap: () async {
+                              await ref
+                                  .read(playlistsProvider.notifier)
+                                  .addSong(playlist.id, song);
+                              if (sheetContext.mounted) {
+                                Navigator.pop(sheetContext);
+                              }
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(
+                                      'Added ${song.title} to ${playlist.name}',
+                                    ),
+                                  ),
+                                );
+                              }
+                            },
+                          );
+                        }),
+                    ],
+                  ),
+                ),
               ),
             ),
           );

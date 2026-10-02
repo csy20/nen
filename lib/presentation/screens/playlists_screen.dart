@@ -1,10 +1,7 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../../domain/entities/entities.dart';
 import '../providers/providers.dart';
@@ -22,6 +19,7 @@ class PlaylistsScreen extends ConsumerStatefulWidget {
 }
 
 class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
+  bool _backupBusy = false;
   @override
   void initState() {
     super.initState();
@@ -61,11 +59,13 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                           color: Theme.of(context).colorScheme.primary,
                         ),
                         const SizedBox(width: 12),
-                        Text(
-                          'Create Playlist',
-                          style: TextStyle(
-                            color: colors.textPrimary,
-                            fontWeight: FontWeight.w500,
+                        Flexible(
+                          child: Text(
+                            'Create Playlist',
+                            style: TextStyle(
+                              color: colors.textPrimary,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         ),
                       ],
@@ -79,7 +79,7 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                   Icons.file_upload_outlined,
                   color: colors.textSecondary,
                 ),
-                onPressed: () => _exportPlaylists(context),
+                onPressed: _backupBusy ? null : () => _exportPlaylists(context),
                 tooltip: 'Export Playlists',
               ),
               IconButton(
@@ -87,7 +87,7 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
                   Icons.file_download_outlined,
                   color: colors.textSecondary,
                 ),
-                onPressed: () => _importPlaylists(context),
+                onPressed: _backupBusy ? null : () => _importPlaylists(context),
                 tooltip: 'Import Playlists',
               ),
             ],
@@ -255,6 +255,7 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
   }
 
   Future<void> _exportPlaylists(BuildContext context) async {
+    if (_backupBusy) return;
     final playlists = ref.read(playlistsProvider);
     if (playlists.isEmpty) {
       ScaffoldMessenger.of(
@@ -291,55 +292,39 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
         .toList();
 
     final json = const JsonEncoder.withIndent('  ').convert(data);
-    final dir = await getExternalStorageDirectory();
-    if (dir == null) {
+    setState(() => _backupBusy = true);
+    try {
+      final saved = await ref.read(playlistDocumentsProvider).save(json);
+      if (saved && context.mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('Playlists exported')));
+      }
+    } catch (_) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not access storage')),
+          const SnackBar(
+            content: Text('Could not export playlists. Please try again.'),
+          ),
         );
       }
-      return;
-    }
-    final file = File(p.join(dir.path, 'nen_playlists.json'));
-    await file.writeAsString(json);
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Exported to ${file.path}')));
+    } finally {
+      if (mounted) setState(() => _backupBusy = false);
     }
   }
 
   Future<void> _importPlaylists(BuildContext context) async {
-    final dir = await getExternalStorageDirectory();
-    if (dir == null) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Could not access storage')),
-        );
-      }
-      return;
-    }
-    final file = File(p.join(dir.path, 'nen_playlists.json'));
-    if (!await file.exists()) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No nen_playlists.json found in app storage'),
-          ),
-        );
-      }
-      return;
-    }
-
+    if (_backupBusy) return;
+    setState(() => _backupBusy = true);
     try {
-      final json = await file.readAsString();
+      final json = await ref.read(playlistDocumentsProvider).open();
+      if (json == null || !mounted) return;
       final data = jsonDecode(json) as List;
-      int count = 0;
+      final backups = <(String, List<Song>)>[];
       for (final playlistData in data) {
         final map = playlistData as Map<String, dynamic>;
         final name = (map['name'] as String?)?.trim() ?? '';
-        if (name.isEmpty) continue;
+        if (name.isEmpty) throw const FormatException('Missing playlist name');
         final songs = (map['songs'] as List<dynamic>? ?? const []).map((
           songData,
         ) {
@@ -360,21 +345,32 @@ class _PlaylistsScreenState extends ConsumerState<PlaylistsScreen> {
             year: song['year'] as int? ?? 0,
           );
         }).toList();
-        await ref.read(playlistsProvider.notifier).importNamed(name, songs);
-        count++;
+        backups.add((name, songs));
+      }
+      for (final backup in backups) {
+        await ref
+            .read(playlistsProvider.notifier)
+            .importNamed(backup.$1, backup.$2);
+        if (!mounted) return;
       }
       await ref.read(playlistsProvider.notifier).load();
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Imported $count playlists')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Imported ${backups.length} playlists')),
+        );
       }
     } catch (e) {
       if (context.mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Import failed: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Could not import playlists. Choose a valid nen backup and try again.',
+            ),
+          ),
+        );
       }
+    } finally {
+      if (mounted) setState(() => _backupBusy = false);
     }
   }
 }

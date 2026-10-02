@@ -1,9 +1,9 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/providers.dart';
 import '../theme/nen_theme.dart';
+import 'nen_glass.dart';
 
 /// Persistent mini-player bar with glassmorphic blur, animated icon morphs,
 /// and physics-based micro-interactions.
@@ -82,8 +82,8 @@ class _MiniPlayerBarState extends ConsumerState<MiniPlayerBar>
             margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(18),
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
+              child: NenGlass(
+                blurSigma: 24,
                 child: Container(
                   decoration: BoxDecoration(
                     color: colors.glassSurface,

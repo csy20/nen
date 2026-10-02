@@ -1,3 +1,4 @@
+import 'package:nen/domain/audio/audio_playback_exception.dart';
 import 'dart:async';
 
 import 'package:audio_service/audio_service.dart' as audio_svc;
@@ -7,6 +8,14 @@ import 'package:nen/domain/entities/entities.dart';
 import 'package:nen/domain/repositories/audio_repository.dart';
 
 class _FakeAudioRepository implements AudioRepository {
+  Duration _position = Duration.zero;
+  @override
+  Duration get currentPosition => _position;
+  @override
+  Stream<AudioPlaybackException> get errorStream => const Stream.empty();
+  @override
+  bool get supportsEqualizer => false;
+
   final StreamController<Duration> _positionController =
       StreamController<Duration>.broadcast();
   final StreamController<void> _completionController =
@@ -68,7 +77,11 @@ class _FakeAudioRepository implements AudioRepository {
   }
 
   @override
-  Future<void> play(Song song) async {
+  Future<void> play(
+    Song song, {
+    Duration initialPosition = Duration.zero,
+  }) async {
+    _position = initialPosition;
     playedSongs.add(song);
     _playing = true;
   }
@@ -85,7 +98,9 @@ class _FakeAudioRepository implements AudioRepository {
   }
 
   @override
-  Future<void> seek(Duration position) async {}
+  Future<void> seek(Duration position) async {
+    _position = position;
+  }
 
   @override
   Future<void> setCrossfadeDuration(Duration duration) async {}
@@ -109,7 +124,10 @@ class _FakeAudioRepository implements AudioRepository {
   Future<void> setVolume(double value) async {}
 
   @override
-  Future<void> stop() async {}
+  Future<void> stop() async {
+    _playing = false;
+    _position = Duration.zero;
+  }
 }
 
 const _longLecture = Song(
@@ -140,28 +158,30 @@ void main() {
     await handler.teardown();
   });
 
-  test('long lecture publishes title, duration, and seek actions immediately',
-      () async {
-    repo.leftoverDuration = const Duration(seconds: 1);
+  test(
+    'long lecture publishes title, duration, and seek actions immediately',
+    () async {
+      repo.leftoverDuration = const Duration(seconds: 1);
 
-    await handler.playSong(_longLecture);
+      await handler.playSong(_longLecture);
 
-    final item = handler.mediaItem.value;
-    expect(item, isNotNull);
-    expect(item!.title, 'Osho Maha Geeta 11');
-    expect(item.artist, 'Osho');
-    expect(item.displayTitle, 'Osho Maha Geeta 11');
-    expect(item.duration, _longLecture.duration);
-    expect(item.artUri, isNull);
-    expect(item.extras?['songId'], 11);
+      final item = handler.mediaItem.value;
+      expect(item, isNotNull);
+      expect(item!.title, 'Osho Maha Geeta 11');
+      expect(item.artist, 'Osho');
+      expect(item.displayTitle, 'Osho Maha Geeta 11');
+      expect(item.duration, _longLecture.duration);
+      expect(item.artUri, isNull);
+      expect(item.extras?['songId'], 11);
 
-    final state = handler.playbackState.value;
-    expect(state.playing, isTrue);
-    expect(state.processingState, audio_svc.AudioProcessingState.ready);
-    expect(state.systemActions, contains(audio_svc.MediaAction.seek));
-    expect(state.bufferedPosition, _longLecture.duration);
-    expect(handler.queue.value.single.title, 'Osho Maha Geeta 11');
-  });
+      final state = handler.playbackState.value;
+      expect(state.playing, isTrue);
+      expect(state.processingState, audio_svc.AudioProcessingState.ready);
+      expect(state.systemActions, contains(audio_svc.MediaAction.seek));
+      expect(state.bufferedPosition, _longLecture.duration);
+      expect(handler.queue.value.single.title, 'Osho Maha Geeta 11');
+    },
+  );
 
   test('does not use the audio content URI as notification artwork', () async {
     await handler.playSong(_longLecture);

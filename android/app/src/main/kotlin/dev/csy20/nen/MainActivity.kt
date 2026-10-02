@@ -19,6 +19,9 @@ class MainActivity : FlutterActivity() {
             if (!flutterEngine.plugins.has(LibraryMediaStorePlugin::class.java)) {
                 flutterEngine.plugins.add(LibraryMediaStorePlugin())
             }
+            if (!flutterEngine.plugins.has(PlaylistDocumentsPlugin::class.java)) {
+                flutterEngine.plugins.add(PlaylistDocumentsPlugin())
+            }
         } catch (t: Throwable) {
             Log.w(TAG, "library plugin register failed", t)
         }

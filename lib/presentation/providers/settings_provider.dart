@@ -224,38 +224,42 @@ class SleepTimerState {
 class SleepTimerNotifier extends StateNotifier<SleepTimerState> {
   SleepTimerNotifier() : super(const SleepTimerState());
 
-  bool _cancelled = false;
+  Timer? _countdown;
+  Timer? _expiry;
 
   void start(Duration duration, VoidCallback onExpired) {
     cancel();
-    _cancelled = false;
-    state = SleepTimerState(remaining: duration, isActive: true);
-
-    unawaited(_tick(duration, onExpired));
-  }
-
-  Future<void> _tick(Duration total, VoidCallback onExpired) async {
-    var remaining = total;
-    while (remaining > Duration.zero && !_cancelled) {
-      await Future.delayed(const Duration(seconds: 1));
-      if (_cancelled) return;
-      remaining -= const Duration(seconds: 1);
-      state = SleepTimerState(remaining: remaining, isActive: true);
+    if (duration <= Duration.zero) {
+      onExpired();
+      return;
     }
-    if (!_cancelled) {
+    state = SleepTimerState(remaining: duration, isActive: true);
+    _countdown = Timer.periodic(const Duration(seconds: 1), (timer) {
+      final remaining = duration - Duration(seconds: timer.tick);
+      if (remaining <= Duration.zero) return;
+      state = SleepTimerState(remaining: remaining, isActive: true);
+    });
+    _expiry = Timer(duration, () {
+      _countdown?.cancel();
+      _countdown = null;
+      _expiry = null;
       state = const SleepTimerState();
       onExpired();
-    }
+    });
   }
 
   void cancel() {
-    _cancelled = true;
+    _countdown?.cancel();
+    _expiry?.cancel();
+    _countdown = null;
+    _expiry = null;
     state = const SleepTimerState();
   }
 
   @override
   void dispose() {
-    _cancelled = true;
+    _countdown?.cancel();
+    _expiry?.cancel();
     super.dispose();
   }
 }

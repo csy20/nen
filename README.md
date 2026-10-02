@@ -12,6 +12,8 @@ Current version: **1.0.13+15**
 - Background playback and lock-screen controls
 - Shuffle, repeat, sleep timer, favorites
 - Dark / light theme
+- High Contrast surfaces, adjustable app volume and playback speed
+- Export and import playlist backups through the Android document picker
 - Dart-only now-playing meter (no microphone, no Android Visualizer JNI)
 
 Supported formats go through the system decoder (ExoPlayer): MP3, FLAC, WAV, OGG, AAC, M4A, and other common types MediaStore can see.
@@ -70,7 +72,22 @@ That produces an obfuscated release bundle:
 - `build/app/outputs/bundle/release/app-release.aab`
 - Dart symbols: `build/app/outputs/symbols/`
 
-Signing uses `android/key.properties` (not in git).
+Signing uses `android/key.properties` (not in git). Release tasks require all
+four values: `keyAlias`, `keyPassword`, `storeFile`, and `storePassword`.
+
+Debug builds need no release signing credentials:
+
+```bash
+flutter pub get
+flutter build apk --debug
+```
+
+Playlist export lets you choose a document location outside app storage. Import
+opens a file you select. Canceling either picker leaves playlists unchanged.
+
+The current audio engine does not support equalizer or crossfade effects. The
+player exposes only supported controls. Its animated meter indicates playback;
+it does not analyze the audio signal.
 
 ## Layout
 

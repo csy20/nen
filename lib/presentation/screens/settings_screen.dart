@@ -1,11 +1,10 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../data/services/app_review_service.dart';
 import '../providers/providers.dart';
 import '../theme/nen_theme.dart';
+import '../widgets/nen_glass.dart';
 
 /// Settings screen with redesigned glassmorphic grouped sections.
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -19,6 +18,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
+    final supportsCrossfade = ref
+        .watch(audioRepositoryProvider)
+        .supportsCrossfade;
     final colors = NenTheme.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -44,8 +46,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(20),
-                child: BackdropFilter(
-                  filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+                child: NenGlass(
                   child: Icon(
                     Icons.arrow_back_ios_new_rounded,
                     size: 18,
@@ -74,16 +75,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _SectionHeader('AUDIO & PLAYBACK'),
           _SettingsGroup(
             children: [
-              _CustomSwitchTile(
-                title: 'Crossfade Tracks',
-                subtitle:
-                    'Overlaps short clips. Library tracks play gapless instead.',
-                value: settings.crossfadeEnabled,
-                activeColor: Colors.cyanAccent,
-                onChanged: (_) =>
-                    ref.read(settingsProvider.notifier).toggleCrossfade(),
-              ),
-              if (settings.crossfadeEnabled) ...[
+              if (supportsCrossfade)
+                _CustomSwitchTile(
+                  title: 'Crossfade Tracks',
+                  subtitle: 'Blend the end of one track into the next.',
+                  value: settings.crossfadeEnabled,
+                  activeColor: Colors.cyanAccent,
+                  onChanged: (_) =>
+                      ref.read(settingsProvider.notifier).toggleCrossfade(),
+                ),
+              if (!supportsCrossfade)
+                const _CustomListTile(
+                  title: 'Crossfade',
+                  subtitle: 'Unavailable with the current audio engine',
+                ),
+              if (supportsCrossfade && settings.crossfadeEnabled) ...[
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
                   child: Row(
@@ -166,7 +172,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             children: [
               Padding(
                 padding: const EdgeInsets.all(16.0),
-                child: Row(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Theme',
@@ -176,7 +183,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const Spacer(),
+                    const SizedBox(height: 12),
                     _ThemeSegmentedControl(
                       currentMode: settings.themeMode,
                       onChanged: (mode) {
@@ -464,7 +471,7 @@ class _ThemeSegmentedControl extends StatelessWidget {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Container(
-      height: 44,
+      constraints: const BoxConstraints(minHeight: 48),
       decoration: BoxDecoration(
         color: isDark
             ? Colors.white.withValues(alpha: 0.1)
@@ -472,7 +479,7 @@ class _ThemeSegmentedControl extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisSize: MainAxisSize.max,
         children: [
           _buildSegment(
             context,
@@ -492,7 +499,7 @@ class _ThemeSegmentedControl extends StatelessWidget {
             mode: NenThemeMode.light,
             child: const Icon(Icons.wb_sunny_rounded, size: 20),
           ),
-        ],
+        ].map((segment) => Expanded(child: segment)).toList(),
       ),
     );
   }
@@ -508,7 +515,8 @@ class _ThemeSegmentedControl extends StatelessWidget {
     return GestureDetector(
       onTap: () => onChanged(mode),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+        constraints: const BoxConstraints(minHeight: 48),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
         margin: const EdgeInsets.all(4),
         decoration: BoxDecoration(
           color: isSelected ? Colors.white : Colors.transparent,

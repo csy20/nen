@@ -1,3 +1,4 @@
+import 'package:nen/domain/audio/audio_playback_exception.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nen/domain/entities/entities.dart';
@@ -6,6 +7,14 @@ import 'package:nen/presentation/providers/di_providers.dart';
 import 'package:nen/presentation/providers/equalizer_provider.dart';
 
 class _FakeAudioRepository implements AudioRepository {
+  Duration _position = Duration.zero;
+  @override
+  Duration get currentPosition => _position;
+  @override
+  Stream<AudioPlaybackException> get errorStream => const Stream.empty();
+  @override
+  bool get supportsEqualizer => true;
+
   bool eqActive = false;
   List<double> bands = List<double>.filled(8, 1.0);
 
@@ -55,7 +64,12 @@ class _FakeAudioRepository implements AudioRepository {
   Future<void> pause() async {}
 
   @override
-  Future<void> play(Song song) async {}
+  Future<void> play(
+    Song song, {
+    Duration initialPosition = Duration.zero,
+  }) async {
+    _position = initialPosition;
+  }
 
   @override
   Future<bool> playPreloaded() async => false;
@@ -67,7 +81,9 @@ class _FakeAudioRepository implements AudioRepository {
   Future<void> resume() async {}
 
   @override
-  Future<void> seek(Duration position) async {}
+  Future<void> seek(Duration position) async {
+    _position = position;
+  }
 
   @override
   Future<void> setCrossfadeDuration(Duration duration) async {}
@@ -200,26 +216,29 @@ class _FakeSettingsRepository implements SettingsRepository {
 }
 
 void main() {
-  test('turning EQ on applies saved bands, not a flat engine default', () async {
-    final audio = _FakeAudioRepository();
-    final settings = _FakeSettingsRepository();
-    final container = ProviderContainer(
-      overrides: [
-        audioRepositoryProvider.overrideWithValue(audio),
-        settingsRepositoryProvider.overrideWithValue(settings),
-      ],
-    );
-    addTearDown(container.dispose);
+  test(
+    'turning EQ on applies saved bands, not a flat engine default',
+    () async {
+      final audio = _FakeAudioRepository();
+      final settings = _FakeSettingsRepository();
+      final container = ProviderContainer(
+        overrides: [
+          audioRepositoryProvider.overrideWithValue(audio),
+          settingsRepositoryProvider.overrideWithValue(settings),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    final notifier = container.read(equalizerProvider.notifier);
-    await notifier.load();
-    expect(container.read(equalizerProvider).isActive, isFalse);
-    expect(audio.eqActive, isFalse);
+      final notifier = container.read(equalizerProvider.notifier);
+      await notifier.load();
+      expect(container.read(equalizerProvider).isActive, isFalse);
+      expect(audio.eqActive, isFalse);
 
-    await notifier.toggleActive();
+      await notifier.toggleActive();
 
-    expect(container.read(equalizerProvider).isActive, isTrue);
-    expect(audio.eqActive, isTrue);
-    expect(audio.bands, settings.bands);
-  });
+      expect(container.read(equalizerProvider).isActive, isTrue);
+      expect(audio.eqActive, isTrue);
+      expect(audio.bands, settings.bands);
+    },
+  );
 }

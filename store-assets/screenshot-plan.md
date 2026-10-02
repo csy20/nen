@@ -31,9 +31,9 @@ Do **not** generate these in code — Csy will capture them on-device.
 
 ### 3. Now playing — visualizer
 
-- **Screen/state:** Same now-playing screen (or a tight crop) with the audio-reactive visualizer bars active. Equalizer entry visible if it fits without clutter.
+- **Screen/state:** Same now-playing screen (or a tight crop) with the animated now-playing bars active.
 - **Why:** The visualizer is a differentiator vs. generic file players.
-- **Overlay:** `A visualizer that follows the music.`
+- **Overlay:** `An animated meter while you listen.`
 
 ### 4. Browse — albums
 
@@ -56,7 +56,6 @@ Do **not** generate these in code — Csy will capture them on-device.
 ## Optional extras (if you have room)
 
 - **Search:** Library search with a query and matching results. Overlay: `Find a track in your library.`
-- **Equalizer:** 8-band EQ with a few bands adjusted. Overlay: `Shape the sound.`
 - **Onboarding:** First welcome page only, if you want a "new app" story. Overlay: `A lightweight offline music player.` Skip this if the listing already has 6 strong product shots.
 
 ## Overlay style

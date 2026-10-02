@@ -122,7 +122,21 @@ class MusicRepositoryImpl implements MusicRepository {
   @override
   Future<List<Song>> getSongsByAlbum(int albumId) async {
     final songs = await _queryAllSongs();
-    return songs.where((s) => _albumKey(s) == albumId).toList();
+    final tracks = songs.where((s) => _albumKey(s) == albumId).toList();
+    tracks.sort((a, b) {
+      // MediaStore TRACK includes the disc number (disc * 1000 + track).
+      // Untagged songs follow tagged songs in deterministic title/id order.
+      final aTagged = a.trackNumber > 0;
+      final bTagged = b.trackNumber > 0;
+      if (aTagged != bTagged) return aTagged ? -1 : 1;
+      if (aTagged) {
+        final order = a.trackNumber.compareTo(b.trackNumber);
+        if (order != 0) return order;
+      }
+      final titleOrder = a.title.toLowerCase().compareTo(b.title.toLowerCase());
+      return titleOrder != 0 ? titleOrder : a.id.compareTo(b.id);
+    });
+    return tracks;
   }
 
   @override

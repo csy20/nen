@@ -11,8 +11,10 @@ plugins {
 val keystoreProperties = Properties()
 val keystorePropertiesFile = rootProject.file("key.properties")
 if (keystorePropertiesFile.exists()) {
-    keystoreProperties.load(FileInputStream(keystorePropertiesFile))
+    FileInputStream(keystorePropertiesFile).use { keystoreProperties.load(it) }
 }
+val signingKeys = listOf("keyAlias", "keyPassword", "storeFile", "storePassword")
+val hasReleaseSigning = signingKeys.all { !keystoreProperties.getProperty(it).isNullOrBlank() }
 
 android {
     namespace = "dev.csy20.nen"
@@ -33,17 +35,21 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            keyAlias = keystoreProperties["keyAlias"] as String
-            keyPassword = keystoreProperties["keyPassword"] as String
-            storeFile = keystoreProperties["storeFile"]?.let { file(it as String) }
-            storePassword = keystoreProperties["storePassword"] as String
+        if (hasReleaseSigning) {
+            create("release") {
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+                storeFile = file(keystoreProperties.getProperty("storeFile"))
+                storePassword = keystoreProperties.getProperty("storePassword")
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             isMinifyEnabled = true
             isShrinkResources = false
             proguardFiles(
@@ -52,6 +58,20 @@ android {
             )
         }
     }
+}
+
+val requireReleaseSigning = tasks.register("requireReleaseSigning") {
+    doLast {
+        if (!hasReleaseSigning) {
+            throw GradleException(
+                "Release signing requires android/key.properties with keyAlias, " +
+                    "keyPassword, storeFile, and storePassword. Use a debug build for local development."
+            )
+        }
+    }
+}
+tasks.configureEach {
+    if (name == "preReleaseBuild") dependsOn(requireReleaseSigning)
 }
 
 tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {

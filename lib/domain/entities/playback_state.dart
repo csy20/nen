@@ -36,6 +36,7 @@ class PlaybackState {
 
   PlaybackState copyWith({
     Song? currentSong,
+    bool clearCurrentSong = false,
     List<Song>? queue,
     int? queueIndex,
     bool? isPlaying,
@@ -49,7 +50,7 @@ class PlaybackState {
     int? crossfadeDuration,
   }) {
     return PlaybackState(
-      currentSong: currentSong ?? this.currentSong,
+      currentSong: clearCurrentSong ? null : currentSong ?? this.currentSong,
       queue: queue ?? this.queue,
       queueIndex: queueIndex ?? this.queueIndex,
       isPlaying: isPlaying ?? this.isPlaying,

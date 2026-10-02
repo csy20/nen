@@ -97,6 +97,8 @@ class _PermissionScreenState extends ConsumerState<PermissionScreen> {
       await ref.read(musicRepositoryProvider).rescanMedia();
     } catch (_) {}
     if (!mounted) return;
+    await ref.read(libraryRefreshProvider.notifier).refresh(rescan: false);
+    if (!mounted) return;
     ref.read(hasAudioPermissionProvider.notifier).state = true;
     setState(() => _loading = false);
   }

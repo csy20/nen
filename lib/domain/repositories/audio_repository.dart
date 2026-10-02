@@ -1,4 +1,5 @@
 import '../entities/entities.dart';
+import '../audio/audio_playback_exception.dart';
 
 /// Contract for the audio playback engine.
 abstract class AudioRepository {
@@ -8,8 +9,15 @@ abstract class AudioRepository {
   /// Tear down the engine, releasing native resources.
   Future<void> dispose();
 
-  /// Load and play a song from disk.
-  Future<void> play(Song song);
+  /// Load at [initialPosition] and request playback. Completes after loading,
+  /// rather than waiting for playback to pause or finish.
+  Future<void> play(Song song, {Duration initialPosition = Duration.zero});
+
+  /// Playback failures reported after source loading has completed.
+  Stream<AudioPlaybackException> get errorStream;
+
+  /// Latest engine position, including while paused.
+  Duration get currentPosition;
 
   /// Pause playback.
   Future<void> pause();
@@ -82,6 +90,9 @@ abstract class AudioRepository {
 
   /// True when EQ is enabled and attached to the current audio session.
   bool get isEqualizerLive;
+
+  /// Whether the backend can apply equalizer effects at all.
+  bool get supportsEqualizer;
 
   /// True when the active backend can actually fade between tracks.
   bool get supportsCrossfade;

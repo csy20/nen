@@ -91,7 +91,7 @@ class NenTheme {
   ];
 
   /// Build the dark theme with an optional dynamic accent color.
-  static ThemeData buildDark({Color? accentColor}) {
+  static ThemeData buildDark({Color? accentColor, bool highContrast = false}) {
     final accent = accentColor ?? defaultAccent;
     return _buildTheme(
       brightness: Brightness.dark,
@@ -101,14 +101,14 @@ class NenTheme {
       surfaceElevatedColor: surfaceElevated,
       overlayColor: surfaceOverlay,
       textPrimaryColor: textPrimary,
-      textSecondaryColor: textSecondary,
-      textTertiaryColor: textTertiary,
+      textSecondaryColor: highContrast ? Colors.white : textSecondary,
+      textTertiaryColor: highContrast ? const Color(0xFFCCCCCC) : textTertiary,
       navBarBg: trueBlack,
     );
   }
 
   /// Build the light theme with an optional dynamic accent color.
-  static ThemeData buildLight({Color? accentColor}) {
+  static ThemeData buildLight({Color? accentColor, bool highContrast = false}) {
     final accent = accentColor ?? defaultAccent;
     return _buildTheme(
       brightness: Brightness.light,
@@ -118,8 +118,12 @@ class NenTheme {
       surfaceElevatedColor: surfaceElevatedLight,
       overlayColor: surfaceOverlayLight,
       textPrimaryColor: textPrimaryLight,
-      textSecondaryColor: textSecondaryLight,
-      textTertiaryColor: textTertiaryLight,
+      textSecondaryColor: highContrast
+          ? const Color(0xFF333333)
+          : textSecondaryLight,
+      textTertiaryColor: highContrast
+          ? const Color(0xFF444444)
+          : textTertiaryLight,
       navBarBg: backgroundPrimaryLight,
     );
   }

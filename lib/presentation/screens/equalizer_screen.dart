@@ -2,9 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/equalizer_provider.dart';
+import '../providers/di_providers.dart';
 import '../theme/nen_theme.dart';
 
-/// 8-band equalizer screen explicitly designed to cleanly match 
+/// 8-band equalizer screen explicitly designed to cleanly match
 /// the premium dark mode mockup, while securely adapting to light theme.
 class EqualizerScreen extends ConsumerWidget {
   const EqualizerScreen({super.key});
@@ -23,13 +24,30 @@ class EqualizerScreen extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = NenTheme.of(context);
+    if (!ref.watch(audioRepositoryProvider).supportsEqualizer) {
+      return Scaffold(
+        backgroundColor: colors.background,
+        appBar: AppBar(title: const Text('Equalizer')),
+        body: const Center(
+          child: Padding(
+            padding: EdgeInsets.all(24),
+            child: Text(
+              'Equalizer is unavailable with the current audio engine.',
+            ),
+          ),
+        ),
+      );
+    }
     final eq = ref.watch(equalizerProvider);
     final eqLive = ref.watch(equalizerLiveProvider);
 
     return Scaffold(
       backgroundColor: colors.background, // Match theme properly
       appBar: AppBar(
-        title: const Text('Equalizer', style: TextStyle(fontWeight: FontWeight.w700)),
+        title: const Text(
+          'Equalizer',
+          style: TextStyle(fontWeight: FontWeight.w700),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
@@ -37,10 +55,11 @@ class EqualizerScreen extends ConsumerWidget {
           // Switch styled closer to the mockup (pink active track)
           Switch(
             value: eq.isActive,
-            activeColor: Colors.white,
+            activeThumbColor: Colors.white,
             activeTrackColor: Theme.of(context).colorScheme.primary,
             inactiveTrackColor: colors.surfaceElevated,
-            onChanged: (val) => ref.read(equalizerProvider.notifier).toggleActive(),
+            onChanged: (val) =>
+                ref.read(equalizerProvider.notifier).toggleActive(),
           ),
           IconButton(
             icon: Icon(Icons.refresh_rounded, color: colors.textPrimary),
@@ -63,10 +82,7 @@ class EqualizerScreen extends ConsumerWidget {
                             ? 'EQ is applied to the current track'
                             : 'EQ applies once a track is playing')
                       : 'Turn on to shape the current track',
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: 13,
-                  ),
+                  style: TextStyle(color: colors.textSecondary, fontSize: 13),
                 ),
               ),
               // Preset chips
@@ -76,11 +92,54 @@ class EqualizerScreen extends ConsumerWidget {
                   physics: const BouncingScrollPhysics(),
                   scrollDirection: Axis.horizontal,
                   children: [
-                    _presetChip(context, ref, colors, eq.bands, 'Flat', [1, 1, 1, 1, 1, 1, 1, 1]),
-                    _presetChip(context, ref, colors, eq.bands, 'Bass Boost', [2.5, 2.0, 1.5, 1, 1, 1, 1, 1]),
-                    _presetChip(context, ref, colors, eq.bands, 'Treble Boost', [1, 1, 1, 1, 1.5, 2.0, 2.5, 2.5]),
-                    _presetChip(context, ref, colors, eq.bands, 'V-Shape', [2.5, 1.8, 1, 0.8, 0.8, 1, 1.8, 2.5]),
-                    _presetChip(context, ref, colors, eq.bands, 'Vocal', [0.8, 1, 1.5, 2.0, 2.0, 1.5, 1, 0.8]),
+                    _presetChip(context, ref, colors, eq.bands, 'Flat', [
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                    ]),
+                    _presetChip(context, ref, colors, eq.bands, 'Bass Boost', [
+                      2.5,
+                      2.0,
+                      1.5,
+                      1,
+                      1,
+                      1,
+                      1,
+                      1,
+                    ]),
+                    _presetChip(
+                      context,
+                      ref,
+                      colors,
+                      eq.bands,
+                      'Treble Boost',
+                      [1, 1, 1, 1, 1.5, 2.0, 2.5, 2.5],
+                    ),
+                    _presetChip(context, ref, colors, eq.bands, 'V-Shape', [
+                      2.5,
+                      1.8,
+                      1,
+                      0.8,
+                      0.8,
+                      1,
+                      1.8,
+                      2.5,
+                    ]),
+                    _presetChip(context, ref, colors, eq.bands, 'Vocal', [
+                      0.8,
+                      1,
+                      1.5,
+                      2.0,
+                      2.0,
+                      1.5,
+                      1,
+                      0.8,
+                    ]),
                   ],
                 ),
               ),
@@ -96,7 +155,9 @@ class EqualizerScreen extends ConsumerWidget {
                         label: _bandLabels[i],
                         value: eq.bands[i],
                         enabled: eq.isActive,
-                        onChanged: (val) => ref.read(equalizerProvider.notifier).setBand(i + 1, val),
+                        onChanged: (val) => ref
+                            .read(equalizerProvider.notifier)
+                            .setBand(i + 1, val),
                       ),
                     );
                   }),
@@ -143,7 +204,10 @@ class EqualizerScreen extends ConsumerWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 200),
         margin: const EdgeInsets.only(right: 12),
-        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 0), // Pill shape
+        padding: const EdgeInsets.symmetric(
+          horizontal: 24,
+          vertical: 0,
+        ), // Pill shape
         alignment: Alignment.center,
         decoration: BoxDecoration(
           color: isMatch ? primaryColor : colors.surfaceElevated,
@@ -204,12 +268,14 @@ class _BandColumn extends StatelessWidget {
         Text(
           _formatDb(value),
           style: TextStyle(
-            color: enabled ? colors.textSecondary : colors.textTertiary.withValues(alpha: 0.3),
+            color: enabled
+                ? colors.textSecondary
+                : colors.textTertiary.withValues(alpha: 0.3),
             fontSize: 11,
             fontWeight: FontWeight.w600,
           ),
         ),
-        
+
         const SizedBox(height: 24),
 
         // Custom stylized vertical slider
@@ -221,7 +287,9 @@ class _BandColumn extends StatelessWidget {
                 trackHeight: 6,
                 activeTrackColor: primaryColor,
                 inactiveTrackColor: colors.surfaceElevated,
-                overlayColor: primaryColor.withValues(alpha: 0.1), // subtle interaction glow
+                overlayColor: primaryColor.withValues(
+                  alpha: 0.1,
+                ), // subtle interaction glow
                 thumbShape: _StrokeThumbShape(
                   radius: 8,
                   strokeColor: primaryColor,
@@ -245,7 +313,9 @@ class _BandColumn extends StatelessWidget {
         Text(
           label,
           style: TextStyle(
-            color: enabled ? colors.textSecondary : colors.textTertiary.withValues(alpha: 0.3),
+            color: enabled
+                ? colors.textSecondary
+                : colors.textTertiary.withValues(alpha: 0.3),
             fontSize: 10,
             fontWeight: FontWeight.w600,
           ),
@@ -288,20 +358,17 @@ class _StrokeThumbShape extends SliderComponentShape {
     required Size sizeWithOverflow,
   }) {
     final canvas = context.canvas;
-    
+
     // Draw solid inner circle
-    canvas.drawCircle(
-      center,
-      radius,
-      Paint()..color = fillColor,
-    );
-    
+    canvas.drawCircle(center, radius, Paint()..color = fillColor);
+
     // Draw outer colored stroke
     canvas.drawCircle(
       center,
       radius,
       Paint()
-        ..color = strokeColor.withValues(alpha: enableAnimation.value) // fade out if disabled
+        ..color = strokeColor
+            .withValues(alpha: enableAnimation.value) // fade out if disabled
         ..style = PaintingStyle.stroke
         ..strokeWidth = 3,
     );

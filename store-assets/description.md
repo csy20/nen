@@ -17,8 +17,8 @@ Nen is a lightweight offline music player for the music already on your phone. F
 Play MP3, FLAC, WAV, OGG, AAC, M4A, and other common audio files from your device library. Nen stays on-device — it does not collect or upload your music.
 
 • Browse local music by songs, albums, artists, playlists, and folders
-• Fast playback with shuffle, repeat, crossfade, and lock-screen controls
-• Real-time audio visualizer and an 8-band equalizer
+• Local playback with shuffle, repeat, and lock-screen controls
+• Animated now-playing meter, adjustable volume, and playback speed
 • Playlists, favorites, sleep timer, and a distraction-free dark or light theme
 • Plays common formats without an account, subscriptions, or ads
 
@@ -28,7 +28,7 @@ Nen is built for people who want a simple local music player: open the app, pick
 
 ---
 
-Character count (full description body, excluding this heading/notes): 906.
+Character count (full description body, excluding this heading/notes): 911.
 Stay well under the 4000-character Play Store limit.
 
 ## Keywords used naturally
